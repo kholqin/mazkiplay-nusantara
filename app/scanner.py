@@ -1,140 +1,223 @@
 from __future__ import annotations
 
-import asyncio
-from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from typing import Any
 
 import httpx
 
-from .config import AppConfig
-from .models import ScanResult, ScanTarget
+from app.config import ScannerConfig
+from app.models import Finding
 
-
-class ScannerError(Exception):
-    """Base exception for scanner errors."""
+from modules.cookies import check_cookies
+from modules.cors import check_cors
+from modules.csp import check_csp
+from modules.disclosure import check_disclosure
+from modules.headers import run_header_checks
+from modules.redirects import check_redirect_chain
 
 
 class WebScanner:
     """
-    Core HTTP scanning engine.
+    Central orchestration engine for Mazkiplay Nusantara.
 
-    The scanner is intentionally rate-limited and designed for
-    authorized security assessments.
+    The engine performs bounded HTTP security assessment and delegates
+    individual checks to dedicated modules.
     """
 
-    def __init__(self, config: AppConfig) -> None:
+    def __init__(
+        self,
+        config: ScannerConfig,
+    ) -> None:
+
         self.config = config
 
         self.client = httpx.AsyncClient(
-            follow_redirects=True,
-            max_redirects=config.scanner.max_redirects,
-            timeout=config.scanner.timeout,
+            timeout=config.timeout,
+            follow_redirects=config.follow_redirects,
             headers={
-                "User-Agent": config.scanner.user_agent,
-                "Accept": "*/*",
+                "User-Agent": config.user_agent,
+                "Accept": (
+                    "text/html,application/xhtml+xml,"
+                    "application/json;q=0.9,*/*;q=0.8"
+                ),
             },
         )
-
-    async def close(self) -> None:
-        await self.client.aclose()
-
-    async def request(
-        self,
-        method: str,
-        url: str,
-        **kwargs,
-    ) -> httpx.Response:
-        """
-        Perform a rate-limited HTTP request.
-        """
-
-        response = await self.client.request(
-            method=method,
-            url=url,
-            **kwargs,
-        )
-
-        delay = self.config.scanner.delay_between_requests
-
-        if delay > 0:
-            await asyncio.sleep(delay)
-
-        return response
 
     async def get(
         self,
         url: str,
-        **kwargs,
     ) -> httpx.Response:
-        return await self.request("GET", url, **kwargs)
+        """
+        Perform a normal GET request.
+        """
 
-    async def head(
+        response = await self.client.get(
+            url
+        )
+
+        return response
+
+    async def analyze_response(
         self,
-        url: str,
-        **kwargs,
-    ) -> httpx.Response:
-        return await self.request("HEAD", url, **kwargs)
-
-    async def scan_target(self, target: ScanTarget) -> ScanResult:
+        response: httpx.Response,
+        original_url: str,
+    ) -> list[Finding]:
         """
-        Initialize a scan result for a target.
-
-        Actual check modules are executed by the orchestrator
-        in later stages.
+        Execute all passive response-level checkers.
         """
 
-        result = ScanResult(target=target)
+        findings: list[Finding] = []
 
-        try:
-            response = await self.get(str(target.url))
+        checkers = (
+            (
+                "headers",
+                lambda: run_header_checks(
+                    response
+                ),
+            ),
+            (
+                "cookies",
+                lambda: check_cookies(
+                    response
+                ),
+            ),
+            (
+                "cors",
+                lambda: check_cors(
+                    response
+                ),
+            ),
+            (
+                "csp",
+                lambda: check_csp(
+                    response
+                ),
+            ),
+            (
+                "disclosure",
+                lambda: check_disclosure(
+                    response
+                ),
+            ),
+            (
+                "redirects",
+                lambda: check_redirect_chain(
+                    response,
+                    original_url,
+                ),
+            ),
+        )
 
-            result.requests_made += 1
+        for name, checker in checkers:
 
-            if response.is_error:
-                result.findings.append(
-                    {
-                        from .models  Finding, ScanResult, ScanTarget, Severity
-                        ),
-                        "url": str(response.url),
-                        "category": "http",
-                result.add_finding(
-    Finding(
-        id="http-status",
-        title="HTTP Error Response",
-        severity=Severity.INFO,
-        description=(
-            f"Target returned HTTP "
-            f"status {response.status_code}."
-        ),
-        url=response.url,
-        category="http",
-    )
-            )
-                    }
+            try:
+
+                results = checker()
+
+                findings.extend(
+                    results
                 )
 
-        except httpx.HTTPError as exc:
-            raise ScannerError(
-                f"Unable to reach target: {exc}"
-            ) from exc
+            except Exception as exc:
 
-        finally:
-            result.finish()
+                findings.append(
+                    self._checker_error(
+                        name,
+                        response.url,
+                        exc,
+                    )
+                )
 
-        return result
+        return self._deduplicate(
+            findings
+        )
 
+    async def scan(
+        self,
+        url: str,
+    ) -> tuple[list[Finding], int]:
+        """
+        Run the central passive assessment engine.
 
-@asynccontextmanager
-async def create_scanner(
-    config: AppConfig,
-) -> AsyncIterator[WebScanner]:
-    """
-    Async context manager for safe client lifecycle management.
-    """
+        Returns:
+            findings, request_count
+        """
 
-    scanner = WebScanner(config)
+        request_count = 0
 
-    try:
-        yield scanner
-    finally:
-        await scanner.close()
+        response = await self.get(
+            url
+        )
+
+        request_count += 1
+
+        findings = await self.analyze_response(
+            response=response,
+            original_url=url,
+        )
+
+        return (
+            findings,
+            request_count,
+        )
+
+    async def close(self) -> None:
+        """
+        Close the HTTP client.
+        """
+
+        await self.client.aclose()
+
+    @staticmethod
+    def _checker_error(
+        checker_name: str,
+        url: Any,
+        error: Exception,
+    ) -> Finding:
+        """
+        Convert checker exceptions into INFO findings instead
+        of crashing the entire scan.
+        """
+
+        return Finding(
+            id=f"checker-error-{checker_name}",
+            title=f"{checker_name} Checker Error",
+            severity="INFO",
+            description=(
+                "A security checker could not complete. "
+                "The remaining checks continued normally."
+            ),
+            evidence=str(error),
+            recommendation=(
+                "Review the checker implementation or target "
+                "response that caused the exception."
+            ),
+            url=str(url),
+            category="scanner",
+        )
+
+    @staticmethod
+    def _deduplicate(
+        findings: list[Finding],
+    ) -> list[Finding]:
+        """
+        Remove duplicate findings.
+        """
+
+        unique: dict[
+            tuple[str, str, str],
+            Finding,
+        ] = {}
+
+        for finding in findings:
+
+            key = (
+                finding.id,
+                str(finding.url),
+                finding.evidence or "",
+            )
+
+            unique[key] = finding
+
+        return list(
+            unique.values()
+        )
