@@ -93,15 +93,23 @@ class WebScanner:
             if response.is_error:
                 result.findings.append(
                     {
-                        "id": "http-status",
-                        "title": "HTTP Error Response",
-                        "severity": "INFO",
-                        "description": (
-                            f"Target returned HTTP "
-                            f"status {response.status_code}."
+                        from .models  Finding, ScanResult, ScanTarget, Severity
                         ),
                         "url": str(response.url),
                         "category": "http",
+                result.add_finding(
+    Finding(
+        id="http-status",
+        title="HTTP Error Response",
+        severity=Severity.INFO,
+        description=(
+            f"Target returned HTTP "
+            f"status {response.status_code}."
+        ),
+        url=response.url,
+        category="http",
+    )
+            )
                     }
                 )
 
