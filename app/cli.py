@@ -8,8 +8,16 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from app.config import load_config
-from app.models import Finding, ScanTarget, Severity
+from app.config import (
+    APP_NAME,
+    APP_VERSION,
+    load_config,
+)
+from app.models import (
+    Finding,
+    ScanTarget,
+    Severity,
+)
 from app.reporting import (
     build_scan_result,
     save_json_report,
@@ -17,25 +25,11 @@ from app.reporting import (
 )
 from app.scanner import WebScanner
 
-from modules.cookies import check_cookies
-from modules.cors import check_cors
-from modules.csp import check_csp
-from modules.disclosure import check_disclosure
-from modules.headers import run_header_checks
-from modules.redirects import check_redirect_chain
-
-
-# ============================================================
-# APP CONFIGURATION
-# ============================================================
-
-APP_NAME = "Mazkiplay Nusantara"
-APP_VERSION = "0.1.0"
 
 app = typer.Typer(
     name="mazkiplay-nusantara",
     help=(
-        "Mazkiplay Nusantara — "
+        "Mazkiplay Nusantara - "
         "Web Security Assessment Toolkit"
     ),
     add_completion=False,
@@ -56,10 +50,14 @@ BANNER = r"""
 ██║ ╚═╝ ██║██║  ██║███████╗██║  ██╗██║██║     ███████╗██║  ██║   ██║
 ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝
 
-                 🇮🇩  N U S A N T A R A  🇮🇩
-                    Web Security Toolkit
+                    🇮🇩  NUSANTARA  🇮🇩
+              WEB SECURITY ASSESSMENT TOOLKIT
 """
 
+
+# ============================================================
+# UI
+# ============================================================
 
 def print_banner() -> None:
     console.print(
@@ -72,75 +70,21 @@ def print_banner() -> None:
     )
 
 
-# ============================================================
-# TARGET VALIDATION
-# ============================================================
-
-def validate_target(target: str) -> ScanTarget:
-    """
-    Validate and normalize an HTTP/HTTPS target.
-    """
-
-    target = target.strip()
-
-    if not target:
-        raise typer.BadParameter(
-            "Target tidak boleh kosong."
-        )
-
-    if not target.startswith(
-        ("http://", "https://")
-    ):
-        target = "https://" + target
-
-    parsed = urlparse(target)
-
-    if parsed.scheme not in {
-        "http",
-        "https",
-    }:
-        raise typer.BadParameter(
-            "Target harus menggunakan HTTP atau HTTPS."
-        )
-
-    if not parsed.hostname:
-        raise typer.BadParameter(
-            "Hostname target tidak valid."
-        )
-
-    return ScanTarget(
-        url=target,
-        hostname=parsed.hostname,
-        scheme=parsed.scheme,
-        port=parsed.port,
-    )
-
-
-# ============================================================
-# SEVERITY DISPLAY
-# ============================================================
-
 def severity_style(
     severity: Severity,
 ) -> str:
 
-    styles = {
+    return {
         Severity.CRITICAL: "bold red",
         Severity.HIGH: "red",
         Severity.MEDIUM: "yellow",
         Severity.LOW: "cyan",
         Severity.INFO: "white",
-    }
-
-    return styles.get(
+    }.get(
         severity,
         "white",
     )
 
-
-# ============================================================
-# FINDINGS TABLE
-# ============================================================
 
 def print_findings(
     findings: list[Finding],
@@ -149,7 +93,9 @@ def print_findings(
     if not findings:
         console.print(
             Panel(
-                "[bold green]No findings detected.[/]",
+                "[bold green]"
+                "No findings detected."
+                "[/]",
                 title="Security Result",
                 border_style="green",
             )
@@ -158,7 +104,6 @@ def print_findings(
 
     table = Table(
         title="Security Findings",
-        show_header=True,
         show_lines=True,
         expand=True,
     )
@@ -170,7 +115,6 @@ def print_findings(
 
     table.add_column(
         "ID",
-        style="dim",
     )
 
     table.add_column(
@@ -191,20 +135,13 @@ def print_findings(
             f"[{style}]"
             f"{finding.severity.value}"
             f"[/]",
-
             finding.id,
-
             finding.title,
-
             finding.category,
         )
 
     console.print(table)
 
-
-# ============================================================
-# SUMMARY
-# ============================================================
 
 def print_summary(
     findings: list[Finding],
@@ -215,8 +152,7 @@ def print_summary(
     )
 
     table = Table(
-        title="Severity Summary",
-        show_header=True,
+        title="Severity Summary"
     )
 
     table.add_column(
@@ -239,7 +175,58 @@ def print_summary(
 
 
 # ============================================================
-# SCANNER ENGINE
+# TARGET
+# ============================================================
+
+def validate_target(
+    target: str,
+) -> ScanTarget:
+
+    target = target.strip()
+
+    if not target:
+        raise typer.BadParameter(
+            "Target tidak boleh kosong."
+        )
+
+    if not target.startswith(
+        (
+            "http://",
+            "https://",
+        )
+    ):
+        target = (
+            "https://"
+            + target
+        )
+
+    parsed = urlparse(
+        target
+    )
+
+    if parsed.scheme not in {
+        "http",
+        "https",
+    }:
+        raise typer.BadParameter(
+            "Gunakan target HTTP atau HTTPS."
+        )
+
+    if not parsed.hostname:
+        raise typer.BadParameter(
+            "Hostname tidak valid."
+        )
+
+    return ScanTarget(
+        url=target,
+        hostname=parsed.hostname,
+        scheme=parsed.scheme,
+        port=parsed.port,
+    )
+
+
+# ============================================================
+# SCANNER
 # ============================================================
 
 async def perform_scan(
@@ -252,80 +239,18 @@ async def perform_scan(
         config
     )
 
-    requests_made = 0
-
     try:
 
-        response = await scanner.get(
-            str(target.url)
-        )
-
-        requests_made += 1
-
-        findings: list[Finding] = []
-
-        # ----------------------------------------------------
-        # HTTP SECURITY HEADERS
-        # ----------------------------------------------------
-
-        findings.extend(
-            run_header_checks(
-                response
+        findings, requests_made = (
+            await scanner.scan(
+                str(target.url)
             )
         )
 
-        # ----------------------------------------------------
-        # COOKIE SECURITY
-        # ----------------------------------------------------
-
-        findings.extend(
-            check_cookies(
-                response
-            )
+        return (
+            findings,
+            requests_made,
         )
-
-        # ----------------------------------------------------
-        # CORS
-        # ----------------------------------------------------
-
-        findings.extend(
-            check_cors(
-                response
-            )
-        )
-
-        # ----------------------------------------------------
-        # CONTENT SECURITY POLICY
-        # ----------------------------------------------------
-
-        findings.extend(
-            check_csp(
-                response
-            )
-        )
-
-        # ----------------------------------------------------
-        # INFORMATION DISCLOSURE
-        # ----------------------------------------------------
-
-        findings.extend(
-            check_disclosure(
-                response
-            )
-        )
-
-        # ----------------------------------------------------
-        # REDIRECT ANALYSIS
-        # ----------------------------------------------------
-
-        findings.extend(
-            check_redirect_chain(
-                response,
-                str(target.url),
-            )
-        )
-
-        return findings, requests_made
 
     finally:
 
@@ -333,7 +258,7 @@ async def perform_scan(
 
 
 # ============================================================
-# SCAN COMMAND
+# SCAN
 # ============================================================
 
 @app.command()
@@ -341,7 +266,8 @@ def scan(
     target: str = typer.Argument(
         ...,
         help=(
-            "HTTP/HTTPS target yang ingin diperiksa."
+            "HTTP/HTTPS target yang "
+            "diizinkan untuk assessment."
         ),
     ),
 
@@ -349,14 +275,9 @@ def scan(
         "reports",
         "--output",
         "-o",
-        help=(
-            "Directory untuk menyimpan JSON report."
-        ),
+        help="Directory JSON report.",
     ),
 ) -> None:
-    """
-    Jalankan passive web security assessment.
-    """
 
     print_banner()
 
@@ -369,8 +290,8 @@ def scan(
     except typer.BadParameter as exc:
 
         console.print(
-            f"[bold red]Invalid target:[/] "
-            f"{exc}"
+            f"[bold red]"
+            f"Invalid target:[/] {exc}"
         )
 
         raise typer.Exit(
@@ -379,20 +300,20 @@ def scan(
 
     console.print(
         Panel(
-            f"[bold]Target:[/] "
+            f"[bold]URL:[/] "
             f"{scan_target.url}\n"
             f"[bold]Host:[/] "
             f"{scan_target.hostname}\n"
             f"[bold]Scheme:[/] "
             f"{scan_target.scheme}",
-            title="Scan Target",
+            title="Target",
             border_style="cyan",
         )
     )
 
     console.print(
-        "\n[bold cyan]"
-        "Starting security assessment..."
+        "\n[cyan]"
+        "Running passive security assessment..."
         "[/]\n"
     )
 
@@ -432,10 +353,6 @@ def scan(
             code=1
         )
 
-    # --------------------------------------------------------
-    # RESULTS
-    # --------------------------------------------------------
-
     console.print(
         "\n[bold cyan]"
         "Assessment complete."
@@ -453,7 +370,7 @@ def scan(
     )
 
     # --------------------------------------------------------
-    # JSON REPORT
+    # REPORT
     # --------------------------------------------------------
 
     try:
@@ -487,38 +404,35 @@ def scan(
     console.print(
         Panel(
             f"[bold green]"
-            f"Report successfully saved[/]\n\n"
+            f"JSON report created[/]\n\n"
             f"{report_path}",
-            title="JSON Report",
+            title="Report",
             border_style="green",
         )
     )
 
     console.print(
-        f"\n[bold]Total findings:[/] "
+        f"\n[bold]Findings:[/] "
         f"{len(findings)}"
     )
 
     console.print(
-        f"[bold]Requests made:[/] "
+        f"[bold]Requests:[/] "
         f"{requests_made}\n"
     )
 
 
 # ============================================================
-# VERSION COMMAND
+# VERSION
 # ============================================================
 
 @app.command()
 def version() -> None:
-    """
-    Tampilkan versi Mazkiplay Nusantara.
-    """
 
     console.print(
         Panel(
             f"[bold cyan]{APP_NAME}[/]\n"
-            f"Version: {APP_VERSION}\n"
+            f"Version: {APP_VERSION}\n\n"
             "Web Security Assessment Toolkit",
             border_style="cyan",
         )
@@ -526,63 +440,74 @@ def version() -> None:
 
 
 # ============================================================
-# INFO COMMAND
+# INFO
 # ============================================================
 
 @app.command()
 def info() -> None:
-    """
-    Tampilkan informasi scanner.
-    """
+
+    config = load_config()
 
     table = Table(
         title=APP_NAME
     )
 
     table.add_column(
-        "Component"
+        "Setting"
     )
 
     table.add_column(
-        "Status"
+        "Value"
     )
 
-    components = [
+    rows = [
         (
-            "HTTP Security Headers",
-            "ACTIVE",
+            "Version",
+            APP_VERSION,
         ),
         (
-            "Cookie Security",
-            "ACTIVE",
+            "Timeout",
+            f"{config.timeout}s",
         ),
         (
-            "CORS Analysis",
-            "ACTIVE",
+            "Connect Timeout",
+            f"{config.connect_timeout}s",
         ),
         (
-            "CSP Analysis",
-            "ACTIVE",
+            "Max Redirects",
+            str(config.max_redirects),
         ),
         (
-            "Information Disclosure",
-            "ACTIVE",
+            "Max Pages",
+            str(config.max_pages),
         ),
         (
-            "Redirect Analysis",
-            "ACTIVE",
+            "Concurrency",
+            str(config.concurrency),
         ),
         (
-            "JSON Reporting",
-            "ACTIVE",
+            "Request Delay",
+            f"{config.request_delay}s",
+        ),
+        (
+            "TLS Verification",
+            str(config.verify_tls),
+        ),
+        (
+            "Follow Redirects",
+            str(config.follow_redirects),
+        ),
+        (
+            "Reports",
+            str(config.reports_dir),
         ),
     ]
 
-    for name, status in components:
+    for key, value in rows:
 
         table.add_row(
-            name,
-            f"[green]{status}[/]",
+            key,
+            value,
         )
 
     console.print(table)
