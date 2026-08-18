@@ -1,79 +1,277 @@
 from __future__ import annotations
 
-import json
+import os
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
-
-from pydantic import BaseModel, Field
 
 
-class ScannerSettings(BaseModel):
+APP_NAME = "Mazkiplay Nusantara"
+APP_VERSION = "0.1.0"
+
+
+def _env_bool(
+    name: str,
+    default: bool,
+) -> bool:
+    value = os.getenv(name)
+
+    if value is None:
+        return default
+
+    return value.strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _env_int(
+    name: str,
+    default: int,
+    minimum: int = 0,
+) -> int:
+    value = os.getenv(name)
+
+    if value is None:
+        return default
+
+    try:
+        parsed = int(value)
+    except ValueError:
+        return default
+
+    return max(
+        parsed,
+        minimum,
+    )
+
+
+def _env_float(
+    name: str,
+    default: float,
+    minimum: float = 0.0,
+) -> float:
+    value = os.getenv(name)
+
+    if value is None:
+        return default
+
+    try:
+        parsed = float(value)
+    except ValueError:
+        return default
+
+    return max(
+        parsed,
+        minimum,
+    )
+
+
+@dataclass(slots=True)
+class ScannerConfig:
+    """
+    Runtime configuration for Mazkiplay Nusantara.
+    """
+
     timeout: float = 10.0
+
+    connect_timeout: float = 5.0
+
+    read_timeout: float = 10.0
+
+    write_timeout: float = 10.0
+
+    pool_timeout: float = 5.0
+
+    follow_redirects: bool = True
+
     max_redirects: int = 5
-    delay_between_requests: float = 0.5
+
     max_pages: int = 100
-    user_agent: str = "Mazkiplay-Nusantara/0.1.0"
+
+    max_sitemap_urls: int = 100
+
+    concurrency: int = 5
+
+    request_delay: float = 0.25
+
+    user_agent: str = (
+        "Mazkiplay-Nusantara/"
+        f"{APP_VERSION} "
+        "(Security Assessment)"
+    )
+
+    verify_tls: bool = True
+
+    allow_external_redirects: bool = False
+
+    reports_dir: Path = Path("reports")
+
+    enable_headers: bool = True
+
+    enable_cookies: bool = True
+
+    enable_cors: bool = True
+
+    enable_csp: bool = True
+
+    enable_disclosure: bool = True
+
+    enable_redirects: bool = True
+
+    enable_robots: bool = True
+
+    enable_sitemap: bool = True
+
+    enable_crawler: bool = True
 
 
-class CheckSettings(BaseModel):
-    headers: bool = True
-    cookies: bool = True
-    tls: bool = True
-    cors: bool = True
-    csp: bool = True
-    robots: bool = True
-    sitemap: bool = True
-    redirects: bool = True
-    disclosure: bool = True
-
-
-class OutputSettings(BaseModel):
-    format: str = "json"
-    directory: str = "reports"
-
-
-class ProjectSettings(BaseModel):
-    name: str = "Mazkiplay Nusantara"
-    version: str = "0.1.0"
-    description: str = "Web Security Assessment Toolkit"
-
-
-class AppConfig(BaseModel):
-    project: ProjectSettings = Field(default_factory=ProjectSettings)
-    scanner: ScannerSettings = Field(default_factory=ScannerSettings)
-    checks: CheckSettings = Field(default_factory=CheckSettings)
-    output: OutputSettings = Field(default_factory=OutputSettings)
-
-
-def load_config(path: str | Path = "config.json") -> AppConfig:
+def load_config() -> ScannerConfig:
     """
-    Load scanner configuration from JSON.
+    Load scanner configuration from environment variables.
 
-    If the requested file does not exist, default settings are returned.
+    Environment variables are optional. Defaults are used when
+    variables are absent or invalid.
     """
 
-    config_path = Path(path)
-
-    if not config_path.exists():
-        return AppConfig()
-
-    with config_path.open("r", encoding="utf-8") as file:
-        raw: dict[str, Any] = json.load(file)
-
-    return AppConfig.model_validate(raw)
-
-
-def save_config(config: AppConfig, path: str | Path) -> None:
-    """Save configuration as formatted JSON."""
-
-    config_path = Path(path)
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with config_path.open("w", encoding="utf-8") as file:
-        json.dump(
-            config.model_dump(mode="json"),
-            file,
-            indent=2,
-            ensure_ascii=False,
+    reports_dir = Path(
+        os.getenv(
+            "MNP_REPORTS_DIR",
+            "reports",
         )
-        file.write("\n")
+    )
+
+    return ScannerConfig(
+
+        timeout=_env_float(
+            "MNP_TIMEOUT",
+            10.0,
+            minimum=0.5,
+        ),
+
+        connect_timeout=_env_float(
+            "MNP_CONNECT_TIMEOUT",
+            5.0,
+            minimum=0.5,
+        ),
+
+        read_timeout=_env_float(
+            "MNP_READ_TIMEOUT",
+            10.0,
+            minimum=0.5,
+        ),
+
+        write_timeout=_env_float(
+            "MNP_WRITE_TIMEOUT",
+            10.0,
+            minimum=0.5,
+        ),
+
+        pool_timeout=_env_float(
+            "MNP_POOL_TIMEOUT",
+            5.0,
+            minimum=0.5,
+        ),
+
+        follow_redirects=_env_bool(
+            "MNP_FOLLOW_REDIRECTS",
+            True,
+        ),
+
+        max_redirects=_env_int(
+            "MNP_MAX_REDIRECTS",
+            5,
+            minimum=0,
+        ),
+
+        max_pages=_env_int(
+            "MNP_MAX_PAGES",
+            100,
+            minimum=1,
+        ),
+
+        max_sitemap_urls=_env_int(
+            "MNP_MAX_SITEMAP_URLS",
+            100,
+            minimum=1,
+        ),
+
+        concurrency=_env_int(
+            "MNP_CONCURRENCY",
+            5,
+            minimum=1,
+        ),
+
+        request_delay=_env_float(
+            "MNP_REQUEST_DELAY",
+            0.25,
+            minimum=0.0,
+        ),
+
+        user_agent=os.getenv(
+            "MNP_USER_AGENT",
+            (
+                "Mazkiplay-Nusantara/"
+                f"{APP_VERSION} "
+                "(Security Assessment)"
+            ),
+        ),
+
+        verify_tls=_env_bool(
+            "MNP_VERIFY_TLS",
+            True,
+        ),
+
+        allow_external_redirects=_env_bool(
+            "MNP_ALLOW_EXTERNAL_REDIRECTS",
+            False,
+        ),
+
+        reports_dir=reports_dir,
+
+        enable_headers=_env_bool(
+            "MNP_CHECK_HEADERS",
+            True,
+        ),
+
+        enable_cookies=_env_bool(
+            "MNP_CHECK_COOKIES",
+            True,
+        ),
+
+        enable_cors=_env_bool(
+            "MNP_CHECK_CORS",
+            True,
+        ),
+
+        enable_csp=_env_bool(
+            "MNP_CHECK_CSP",
+            True,
+        ),
+
+        enable_disclosure=_env_bool(
+            "MNP_CHECK_DISCLOSURE",
+            True,
+        ),
+
+        enable_redirects=_env_bool(
+            "MNP_CHECK_REDIRECTS",
+            True,
+        ),
+
+        enable_robots=_env_bool(
+            "MNP_CHECK_ROBOTS",
+            True,
+        ),
+
+        enable_sitemap=_env_bool(
+            "MNP_CHECK_SITEMAP",
+            True,
+        ),
+
+        enable_crawler=_env_bool(
+            "MNP_CHECK_CRAWLER",
+            True,
+        ),
+    )
