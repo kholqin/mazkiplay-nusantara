@@ -1,0 +1,29 @@
+{
+  "project": {
+    "name": "Mazkiplay Nusantara",
+    "version": "0.1.0",
+    "description": "Web Security Assessment Toolkit"
+  },
+  "scanner": {
+    "timeout": 10,
+    "max_redirects": 5,
+    "delay_between_requests": 0.5,
+    "max_pages": 100,
+    "user_agent": "Mazkiplay-Nusantara/0.1.0"
+  },
+  "checks": {
+    "headers": true,
+    "cookies": true,
+    "tls": true,
+    "cors": true,
+    "csp": true,
+    "robots": true,
+    "sitemap": true,
+    "redirects": true,
+    "disclosure": true
+  },
+  "output": {
+    "format": "json",
+    "directory": "reports"
+  }
+}
