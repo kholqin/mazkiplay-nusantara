@@ -7,7 +7,10 @@ import httpx
 from app.models import Finding, Severity
 
 
-SECURITY_HEADERS: dict[str, tuple[Severity, str, str]] = {
+SECURITY_HEADERS: dict[
+    str,
+    tuple[Severity, str, str, str],
+] = {
     "strict-transport-security": (
         Severity.MEDIUM,
         "Missing HSTS",

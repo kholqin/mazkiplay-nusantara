@@ -126,12 +126,17 @@ class WebScanner:
     async def scan(
         self,
         url: str,
-    ) -> tuple[list[Finding], int]:
+    ) -> tuple[list[Finding], int, int]:
         """
         Run the complete assessment.
 
-        The second return value is the number of requests
-        directly initiated by this engine.
+        Returns:
+            findings:
+                Security findings produced by the assessment.
+            requests_made:
+                Number of HTTP requests initiated by the scanner.
+            pages_scanned:
+                Number of HTML pages successfully processed.
         """
 
         target = str(url).strip()
@@ -153,10 +158,12 @@ class WebScanner:
                     url=None,
                     category="scanner",
                 )
-            ], 0
+            ], 0, 0
 
         findings: list[Finding] = []
         requests_made = 0
+        pages_scanned = 0
+        scanned_pages: set[str] = set()
 
         # --------------------------------------------------
         # Primary request
@@ -165,6 +172,8 @@ class WebScanner:
         try:
             response = await self.get(target)
             requests_made += 1
+            scanned_pages.add(target)
+            pages_scanned = len(scanned_pages)
 
         except httpx.HTTPError as exc:
             findings.append(
@@ -185,7 +194,11 @@ class WebScanner:
                 )
             )
 
-            return self.deduplicate(findings), requests_made
+            return (
+                self.deduplicate(findings),
+                requests_made,
+                pages_scanned,
+            )
 
         # --------------------------------------------------
         # Response checks
@@ -250,13 +263,21 @@ class WebScanner:
 
         if self.config.enable_crawler:
             try:
-                _, crawler_findings = await crawl(
+                (
+                    crawler_pages,
+                    crawler_findings,
+                    crawler_requests,
+                ) = await crawl(
                     client=self.client,
                     start_url=target,
                     max_pages=self.config.max_pages,
+                    request_delay=self.config.request_delay,
                 )
 
                 findings.extend(crawler_findings)
+                requests_made += crawler_requests
+                scanned_pages.update(crawler_pages)
+                pages_scanned = len(scanned_pages)
 
             except Exception as exc:
                 findings.append(
@@ -289,7 +310,11 @@ class WebScanner:
                     )
                 )
 
-        return self.deduplicate(findings), requests_made
+        return (
+                self.deduplicate(findings),
+                requests_made,
+                pages_scanned,
+            )
 
     async def close(self) -> None:
         """Close the HTTP client."""

@@ -187,17 +187,15 @@ def validate_target(target: str) -> ScanTarget:
             "Target tidak boleh kosong."
         )
 
-    if not target.startswith(
-        ("http://", "https://")
-    ):
+    # Only add the default HTTPS scheme when the user supplied
+    # a bare hostname. Never rewrite an explicitly supplied
+    # unsupported scheme such as ftp://, ssh://, etc.
+    if "://" not in target:
         target = "https://" + target
 
     parsed = urlparse(target)
 
-    if parsed.scheme not in {
-        "http",
-        "https",
-    }:
+    if parsed.scheme not in {"http", "https"}:
         raise typer.BadParameter(
             "Gunakan target HTTP atau HTTPS."
         )
@@ -221,20 +219,20 @@ def validate_target(target: str) -> ScanTarget:
 
 async def perform_scan(
     target: ScanTarget,
-) -> tuple[list[Finding], int]:
+) -> tuple[list[Finding], int, int]:
 
     config = load_config()
 
     scanner = WebScanner(config)
 
     try:
-        findings, requests_made = (
+        findings, requests_made, pages_scanned = (
             await scanner.scan(
                 str(target.url)
             )
         )
 
-        return findings, requests_made
+        return findings, requests_made, pages_scanned
 
     finally:
         await scanner.close()
@@ -384,7 +382,11 @@ def scan(
     )
 
     try:
-        findings, requests_made = asyncio.run(
+        (
+            findings,
+            requests_made,
+            pages_scanned,
+        ) = asyncio.run(
             perform_scan(scan_target)
         )
 
@@ -415,7 +417,7 @@ def scan(
         result = build_scan_result(
             target=scan_target,
             findings=findings,
-            pages_scanned=1,
+            pages_scanned=pages_scanned,
             requests_made=requests_made,
         )
 
@@ -593,7 +595,11 @@ def menu_web_scan() -> None:
             "[/]\n"
         )
 
-        findings, requests_made = asyncio.run(
+        (
+            findings,
+            requests_made,
+            pages_scanned,
+        ) = asyncio.run(
             perform_scan(scan_target)
         )
 
@@ -610,7 +616,7 @@ def menu_web_scan() -> None:
         result = build_scan_result(
             target=scan_target,
             findings=findings,
-            pages_scanned=1,
+            pages_scanned=pages_scanned,
             requests_made=requests_made,
         )
 

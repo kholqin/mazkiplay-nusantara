@@ -61,7 +61,7 @@ def check_redirect_chain(
                     "Reduce unnecessary redirect hops to improve "
                     "reliability, performance, and security visibility."
                 ),
-                url=response.url,
+                url=str(response.url),
                 category="redirects",
                 metadata={
                     "redirect_count": redirect_count,
@@ -109,7 +109,7 @@ def check_redirect_chain(
                     "and controlled. Avoid accepting arbitrary redirect "
                     "destinations from untrusted input."
                 ),
-                url=response.url,
+                url=str(response.url),
                 category="redirects",
                 metadata={
                     "external_destinations": external_redirects,
@@ -141,7 +141,7 @@ def check_redirect_chain(
                     "Verify that redirects are intentional and that "
                     "destination URLs are appropriately controlled."
                 ),
-                url=response.url,
+                url=str(response.url),
                 category="redirects",
                 metadata={
                     "status_codes": status_codes,

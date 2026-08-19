@@ -41,7 +41,7 @@ def check_cookies(response: httpx.Response) -> list[Finding]:
                         "Review the cookie syntax and ensure it conforms "
                         "to the expected HTTP cookie format."
                     ),
-                    url=response.url,
+                    url=str(response.url),
                     category="cookies",
                 )
             )
@@ -69,7 +69,7 @@ def check_cookies(response: httpx.Response) -> list[Finding]:
                             "Set the Secure attribute for cookies that "
                             "should only travel over HTTPS."
                         ),
-                        url=response.url,
+                        url=str(response.url),
                         category="cookies",
                         metadata={
                             "cookie": cookie_name,
@@ -93,7 +93,7 @@ def check_cookies(response: httpx.Response) -> list[Finding]:
                             "Set HttpOnly for cookies that do not need "
                             "to be accessed by client-side JavaScript."
                         ),
-                        url=response.url,
+                        url=str(response.url),
                         category="cookies",
                         metadata={
                             "cookie": cookie_name,
@@ -118,7 +118,7 @@ def check_cookies(response: httpx.Response) -> list[Finding]:
                             "cross-site requirements, preferably "
                             "Lax or Strict where appropriate."
                         ),
-                        url=response.url,
+                        url=str(response.url),
                         category="cookies",
                         metadata={
                             "cookie": cookie_name,
@@ -141,7 +141,7 @@ def check_cookies(response: httpx.Response) -> list[Finding]:
                         recommendation=(
                             "Use a valid SameSite value: Strict, Lax, or None."
                         ),
-                        url=response.url,
+                        url=str(response.url),
                         category="cookies",
                         metadata={
                             "cookie": cookie_name,
@@ -166,7 +166,7 @@ def check_cookies(response: httpx.Response) -> list[Finding]:
                             "Cookies using SameSite=None should also use "
                             "the Secure attribute."
                         ),
-                        url=response.url,
+                        url=str(response.url),
                         category="cookies",
                         metadata={
                             "cookie": cookie_name,

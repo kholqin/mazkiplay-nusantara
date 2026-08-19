@@ -79,7 +79,7 @@ def check_csp(
                     "Restrict script sources to trusted origins and "
                     "prefer nonces or hashes for inline scripts."
                 ),
-                url=response.url,
+                url=str(response.url),
                 category="csp",
             )
         )
@@ -101,7 +101,7 @@ def check_csp(
                     "Replace unsafe-inline with nonces or hashes "
                     "where practical."
                 ),
-                url=response.url,
+                url=str(response.url),
                 category="csp",
             )
         )
@@ -124,7 +124,7 @@ def check_csp(
                     "Remove unsafe-eval unless it is required by "
                     "the application's runtime."
                 ),
-                url=response.url,
+                url=str(response.url),
                 category="csp",
             )
         )
@@ -143,7 +143,7 @@ def check_csp(
                     "Consider setting object-src to 'none' when "
                     "legacy plugin content is unnecessary."
                 ),
-                url=response.url,
+                url=str(response.url),
                 category="csp",
             )
         )
@@ -166,7 +166,7 @@ def check_csp(
                     "Use object-src 'none' when object/plugin content "
                     "is not required."
                 ),
-                url=response.url,
+                url=str(response.url),
                 category="csp",
             )
         )
@@ -185,7 +185,7 @@ def check_csp(
                     "Consider restricting base-uri if the application "
                     "does not require arbitrary base URLs."
                 ),
-                url=response.url,
+                url=str(response.url),
                 category="csp",
             )
         )
@@ -204,7 +204,7 @@ def check_csp(
                     "Define frame-ancestors when the application "
                     "requires explicit framing restrictions."
                 ),
-                url=response.url,
+                url=str(response.url),
                 category="csp",
             )
         )
@@ -219,7 +219,7 @@ def check_csp(
                 "and analyzed."
             ),
             evidence=csp,
-            url=response.url,
+            url=str(response.url),
             category="csp",
             metadata={
                 "directives": directives,

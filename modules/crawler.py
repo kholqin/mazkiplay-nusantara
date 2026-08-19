@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections import deque
 from urllib.parse import urldefrag, urljoin, urlparse
 
@@ -10,12 +11,9 @@ from app.models import Finding, Severity
 
 
 def normalize_url(url: str) -> str:
-    """
-    Normalize a URL for crawl deduplication.
-    """
+    """Normalize a URL for crawl deduplication."""
 
     url, _ = urldefrag(url)
-
     parsed = urlparse(url)
 
     path = parsed.path or "/"
@@ -30,9 +28,7 @@ def is_same_origin(
     base_url: str,
     candidate_url: str,
 ) -> bool:
-    """
-    Return True when candidate belongs to the same origin.
-    """
+    """Return True when candidate belongs to the same origin."""
 
     base = urlparse(base_url)
     candidate = urlparse(candidate_url)
@@ -51,9 +47,7 @@ def extract_links(
     html: str,
     current_url: str,
 ) -> list[str]:
-    """
-    Extract and normalize links from an HTML document.
-    """
+    """Extract normalized HTTP(S) links from an HTML document."""
 
     soup = BeautifulSoup(
         html,
@@ -61,14 +55,18 @@ def extract_links(
     )
 
     discovered: list[str] = []
+    seen: set[str] = set()
 
     for anchor in soup.find_all("a", href=True):
         href = anchor.get("href")
 
-        if not href:
+        if not isinstance(href, str):
             continue
 
         href = href.strip()
+
+        if not href:
+            continue
 
         if href.startswith(
             (
@@ -86,9 +84,15 @@ def extract_links(
             href,
         )
 
+        parsed = urlparse(absolute)
+
+        if parsed.scheme not in {"http", "https"}:
+            continue
+
         normalized = normalize_url(absolute)
 
-        if normalized not in discovered:
+        if normalized not in seen:
+            seen.add(normalized)
             discovered.append(normalized)
 
     return discovered
@@ -98,23 +102,34 @@ async def crawl(
     client: httpx.AsyncClient,
     start_url: str,
     max_pages: int = 100,
-) -> tuple[list[str], list[Finding]]:
+    request_delay: float = 0.0,
+) -> tuple[list[str], list[Finding], int]:
     """
     Perform a bounded same-origin crawl.
 
-    Only GET requests to same-origin URLs are made.
+    Returns:
+        discovered pages,
+        findings,
+        number of HTTP requests initiated by the crawler.
     """
 
-    queue: deque[str] = deque(
-        [normalize_url(start_url)]
-    )
+    max_pages = max(1, max_pages)
+    request_delay = max(0.0, request_delay)
 
+    start_url = normalize_url(start_url)
+
+    queue: deque[str] = deque([start_url])
+    queued: set[str] = {start_url}
     visited: set[str] = set()
+
     discovered: list[str] = []
     findings: list[Finding] = []
 
+    requests_made = 0
+
     while queue and len(visited) < max_pages:
         current_url = queue.popleft()
+        queued.discard(current_url)
 
         if current_url in visited:
             continue
@@ -127,11 +142,16 @@ async def crawl(
 
         visited.add(current_url)
 
+        if request_delay > 0 and requests_made > 0:
+            await asyncio.sleep(request_delay)
+
         try:
-            response = await client.get(
-                current_url
-            )
+            response = await client.get(current_url)
+            requests_made += 1
+
         except httpx.HTTPError as exc:
+            requests_made += 1
+
             findings.append(
                 Finding(
                     id="crawler-request-error",
@@ -141,13 +161,12 @@ async def crawl(
                         "A same-origin URL could not be retrieved "
                         "during crawling."
                     ),
-                    evidence=(
-                        f"{current_url}: {exc}"
-                    ),
+                    evidence=f"{current_url}: {exc}",
                     url=current_url,
                     category="discovery",
                 )
             )
+
             continue
 
         content_type = response.headers.get(
@@ -155,10 +174,10 @@ async def crawl(
             "",
         ).lower()
 
-        if (
-            response.status_code >= 400
-            or "text/html" not in content_type
-        ):
+        if response.status_code >= 400:
+            continue
+
+        if "text/html" not in content_type:
             continue
 
         discovered.append(current_url)
@@ -173,8 +192,11 @@ async def crawl(
             ):
                 continue
 
-            if link not in visited:
-                queue.append(link)
+            if link in visited or link in queued:
+                continue
+
+            queue.append(link)
+            queued.add(link)
 
     if discovered:
         findings.append(
@@ -186,14 +208,13 @@ async def crawl(
                     "The crawler discovered same-origin HTML URLs "
                     "within the configured page limit."
                 ),
-                evidence="\n".join(
-                    discovered[:50]
-                ),
+                evidence="\n".join(discovered[:50]),
                 url=start_url,
                 category="discovery",
                 metadata={
                     "count": len(discovered),
                     "max_pages": max_pages,
+                    "requests_made": requests_made,
                 },
             )
         )
@@ -214,7 +235,11 @@ async def crawl(
                 ),
                 url=start_url,
                 category="discovery",
+                metadata={
+                    "visited": len(visited),
+                    "queued": len(queue),
+                },
             )
         )
 
-    return discovered, findings
+    return discovered, findings, requests_made

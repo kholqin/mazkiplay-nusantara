@@ -61,7 +61,7 @@ def check_cors(response: httpx.Response) -> list[Finding]:
                         "cross-origin requests. Restrict allowed origins "
                         "to the application's trusted origins."
                     ),
-                    url=response.url,
+                    url=str(response.url),
                     category="cors",
                 )
             )
@@ -83,7 +83,7 @@ def check_cors(response: httpx.Response) -> list[Finding]:
                         "Use an explicit origin allowlist when "
                         "cross-origin access does not need to be public."
                     ),
-                    url=response.url,
+                    url=str(response.url),
                     category="cors",
                 )
             )
@@ -107,7 +107,7 @@ def check_cors(response: httpx.Response) -> list[Finding]:
                     "Maintain a strict trusted-origin allowlist and "
                     "avoid reflecting arbitrary Origin values."
                 ),
-                url=response.url,
+                url=str(response.url),
                 category="cors",
             )
         )
@@ -141,7 +141,7 @@ def check_cors(response: httpx.Response) -> list[Finding]:
                         "Allow only the HTTP methods required by the "
                         "cross-origin application."
                     ),
-                    url=response.url,
+                    url=str(response.url),
                     category="cors",
                     metadata={
                         "methods": sorted(methods),
@@ -175,7 +175,7 @@ def check_cors(response: httpx.Response) -> list[Finding]:
                         "Restrict allowed request headers to those "
                         "actually required by the application."
                     ),
-                    url=response.url,
+                    url=str(response.url),
                     category="cors",
                 )
             )
