@@ -98,3 +98,55 @@ def analyze_missing_security_headers(
         )
 
     return findings
+
+
+def analyze_cookie_evidence(
+    evidence: list[Evidence],
+) -> list[SentinelFinding]:
+    """
+    Report observed cookies as informational findings.
+
+    Cookie security attributes are intentionally not inferred here
+    because the current HTTPObservation model stores cookies as
+    opaque strings.
+    """
+
+    findings: list[SentinelFinding] = []
+
+    for item in evidence:
+        if item.category != "cookie":
+            continue
+
+        cookie_name = item.metadata.get(
+            "cookie_name",
+            item.value or "unknown",
+        )
+
+        findings.append(
+            SentinelFinding(
+                finding_id=f"cookie-observed:{item.evidence_id}",
+                title=f"Cookie observed: {cookie_name}",
+                severity="info",
+                confidence=Confidence.HIGH,
+                category="cookie",
+                description=(
+                    "An HTTP cookie was observed in the response. "
+                    "Cookie security attributes are not evaluated "
+                    "by this rule."
+                ),
+                evidence=item.value,
+                recommendation=(
+                    "Review the cookie configuration separately "
+                    "for Secure, HttpOnly, SameSite, Domain, and Path "
+                    "attributes."
+                ),
+                url=item.url,
+                metadata={
+                    "evidence_id": item.evidence_id,
+                    "cookie_name": cookie_name,
+                    "analysis": "observation-only",
+                },
+            )
+        )
+
+    return findings
