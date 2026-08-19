@@ -271,6 +271,14 @@ class SentinelResult:
         default_factory=list
     )
 
+    fingerprints: list[Any] = field(
+        default_factory=list
+    )
+
+    evidence: list[Any] = field(
+        default_factory=list
+    )
+
     # Exposure intelligence
     exposures: list[ExposureReference] = field(
         default_factory=list
