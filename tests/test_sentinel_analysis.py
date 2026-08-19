@@ -115,3 +115,64 @@ def test_missing_security_headers_are_info():
         finding.confidence == Confidence.HIGH
         for finding in findings
     )
+
+
+def test_cookie_evidence_analysis():
+    from app.sentinel.analysis import (
+        analyze_cookie_evidence,
+    )
+    from app.sentinel.evidence import Evidence
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="session",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "session",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_evidence(
+        evidence
+    )
+
+    assert len(findings) == 1
+
+    finding = findings[0]
+
+    assert finding.finding_id == (
+        "cookie-observed:cookie:session"
+    )
+
+    assert finding.category == "cookie"
+    assert finding.severity == "info"
+    assert finding.confidence == Confidence.HIGH
+    assert finding.url == "https://example.com/"
+    assert finding.metadata["analysis"] == (
+        "observation-only"
+    )
+
+
+def test_cookie_analysis_ignores_other_evidence():
+    from app.sentinel.analysis import (
+        analyze_cookie_evidence,
+    )
+    from app.sentinel.evidence import Evidence
+
+    evidence = [
+        Evidence(
+            evidence_id="header:csp",
+            category="security-header",
+            title="Content Security Policy",
+            value="default-src 'self'",
+        )
+    ]
+
+    assert analyze_cookie_evidence(
+        evidence
+    ) == []
