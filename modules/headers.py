@@ -95,7 +95,7 @@ def check_security_headers(
                     severity=severity,
                     description=description,
                     recommendation=recommendation,
-                    url=response.url,
+                    url=str(response.url),
                     category="security-headers",
                     metadata={
                         "header": header_name,
@@ -138,7 +138,7 @@ def check_header_values(
                     "Prefer nonces or hashes instead of unsafe-inline "
                     "where application architecture permits."
                 ),
-                url=response.url,
+                url=str(response.url),
                 category="security-headers",
             )
         )
@@ -158,7 +158,7 @@ def check_header_values(
                     "Remove unsafe-eval unless it is strictly required "
                     "by the application."
                 ),
-                url=response.url,
+                url=str(response.url),
                 category="security-headers",
             )
         )
@@ -183,7 +183,7 @@ def check_header_values(
                         "Consider a longer HSTS max-age after validating "
                         "HTTPS readiness across the domain."
                     ),
-                    url=response.url,
+                    url=str(response.url),
                     category="security-headers",
                     metadata={"max_age": max_age},
                 )

@@ -49,3 +49,14 @@ dist/
 # Temporary files
 *.tmp
 *.temp
+
+# Local backups
+app/*.bak
+app/*.old
+app/*.before-menu
+
+# Local backups
+app/*.bak
+app/*.old
+app/*.before-menu
+app/*.before-full-engine

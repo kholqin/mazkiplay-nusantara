@@ -49,7 +49,7 @@ def check_disclosure(response: httpx.Response) -> list[Finding]:
                     "Remove or minimize unnecessary technology and "
                     "version information from public HTTP responses."
                 ),
-                url=response.url,
+                url=str(response.url),
                 category="information-disclosure",
                 metadata={
                     "header": display_name,
@@ -81,7 +81,7 @@ def check_disclosure(response: httpx.Response) -> list[Finding]:
                     "Consider minimizing public technology/version "
                     "disclosure where operationally appropriate."
                 ),
-                url=response.url,
+                url=str(response.url),
                 category="information-disclosure",
                 metadata={
                     "header": header_name,

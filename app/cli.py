@@ -1,23 +1,21 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import os
+from pathlib import Path
 from urllib.parse import urlparse
 
 import typer
+from rich import box
+from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
-from app.config import (
-    APP_NAME,
-    APP_VERSION,
-    load_config,
-)
-from app.models import (
-    Finding,
-    ScanTarget,
-    Severity,
-)
+from app.config import APP_NAME, APP_VERSION, load_config
+from app.models import Finding, ScanTarget
 from app.reporting import (
     build_scan_result,
     save_json_report,
@@ -26,12 +24,13 @@ from app.reporting import (
 from app.scanner import WebScanner
 
 
+# ============================================================
+# APPLICATION
+# ============================================================
+
 app = typer.Typer(
     name="mazkiplay-nusantara",
-    help=(
-        "Mazkiplay Nusantara - "
-        "Web Security Assessment Toolkit"
-    ),
+    help="M4ZK1PLAY Nusantara Web Security Assessment Toolkit",
     add_completion=False,
 )
 
@@ -39,149 +38,148 @@ console = Console()
 
 
 # ============================================================
-# BANNER
+# MENU
 # ============================================================
 
-BANNER = r"""
-███╗   ███╗ █████╗ ███████╗██╗  ██╗██╗██████╗ ██╗      █████╗ ██╗   ██╗
-████╗ ████║██╔══██╗╚══███╔╝██║ ██╔╝██║██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝
-██╔████╔██║███████║  ███╔╝ █████╔╝ ██║██████╔╝██║     ███████║ ╚████╔╝
-██║╚██╔╝██║██╔══██║ ███╔╝  ██╔═██╗ ██║██╔═══╝ ██║     ██╔══██║  ╚██╔╝
-██║ ╚═╝ ██║██║  ██║███████╗██║  ██╗██║██║     ███████╗██║  ██║   ██║
-╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝
-
-                    🇮🇩  NUSANTARA  🇮🇩
-              WEB SECURITY ASSESSMENT TOOLKIT
-"""
+MENU_ITEMS = [
+    ("01", "🔍", "WEB SECURITY SCAN"),
+    ("02", "🛡️", "SECURITY HEADERS"),
+    ("03", "🍪", "COOKIE CHECKER"),
+    ("04", "🌐", "CORS CHECKER"),
+    ("05", "📜", "CSP CHECKER"),
+    ("06", "🔎", "INFORMATION DISCLOSURE"),
+    ("07", "🔀", "REDIRECT ANALYZER"),
+    ("08", "🕷️", "URL DISCOVERY"),
+    ("09", "🤖", "ROBOTS.TXT"),
+    ("10", "🗺️", "SITEMAP.XML"),
+    ("11", "🔐", "TLS CHECKER"),
+    ("12", "📊", "VIEW REPORTS"),
+    ("13", "⚙️", "CONFIGURATION"),
+    ("14", "ℹ️", "ABOUT"),
+    ("00", "🚪", "EXIT"),
+]
 
 
 # ============================================================
-# UI
+# TERMINAL UI
 # ============================================================
 
-def print_banner() -> None:
+def clear_terminal() -> None:
+    os.system(
+        "cls" if os.name == "nt" else "clear"
+    )
+
+
+def banner() -> None:
+    text = Text()
+    text.append(
+        "🦅 M4ZK1PLAY NUSANTARA 🇮🇩\n",
+        style="bold bright_white",
+    )
+    text.append(
+        "DARK CYBER SECURITY TOOLKIT\n",
+        style="bold bright_red",
+    )
+    text.append(
+        f"v{APP_VERSION}",
+        style="bold bright_white",
+    )
+
     console.print(
         Panel(
-            BANNER,
-            title=f"[bold cyan]{APP_NAME}[/]",
-            subtitle=f"v{APP_VERSION}",
-            border_style="cyan",
+            Align.center(text),
+            border_style="bright_red",
+            box=box.DOUBLE,
+            padding=(1, 5),
         )
     )
 
 
-def severity_style(
-    severity: Severity,
-) -> str:
-
-    return {
-        Severity.CRITICAL: "bold red",
-        Severity.HIGH: "red",
-        Severity.MEDIUM: "yellow",
-        Severity.LOW: "cyan",
-        Severity.INFO: "white",
-    }.get(
-        severity,
-        "white",
+def disclaimer() -> None:
+    console.print(
+        Panel(
+            "[bold bright_red]"
+            "AUTHORIZED SECURITY TESTING ONLY"
+            "[/]\n\n"
+            "[bright_white]"
+            "M4ZK1PLAY Nusantara is intended for authorized "
+            "security assessment and defensive testing.\n\n"
+            "Only scan systems that you own or have explicit "
+            "permission to assess.\n\n"
+            "Do not use this toolkit to disrupt, bypass, "
+            "or gain unauthorized access to systems."
+            "[/]",
+            title="[bold bright_red]⚠ DISCLAIMER[/]",
+            border_style="bright_red",
+            padding=(1, 2),
+        )
     )
 
 
-def print_findings(
-    findings: list[Finding],
-) -> None:
+def pause() -> None:
+    console.input(
+        "\n[bold bright_red]Press ENTER to continue...[/]"
+    )
 
-    if not findings:
-        console.print(
-            Panel(
-                "[bold green]"
-                "No findings detected."
-                "[/]",
-                title="Security Result",
-                border_style="green",
+
+def show_menu() -> None:
+    table = Table(
+        show_header=False,
+        box=None,
+        padding=(0, 1),
+    )
+
+    table.add_column(
+        "NO",
+        justify="right",
+        style="bold bright_red",
+    )
+    table.add_column(
+        "ICON",
+        justify="center",
+    )
+    table.add_column(
+        "OPTION",
+        style="bold white",
+    )
+
+    for number, icon, title in MENU_ITEMS:
+        style = (
+            "bold bright_red"
+            if number == "00"
+            else "bold white"
+        )
+
+        table.add_row(
+            f"[{number}]",
+            icon,
+            f"[{style}]{title}[/]",
+        )
+
+    console.print(
+        Panel(
+            table,
+            title="[bold bright_red]MAIN MENU[/]",
+            border_style="bright_red",
+            padding=(1, 2),
+        )
+    )
+
+    console.print(
+        Align.center(
+            Text(
+                "M4ZK1PLAY@NUSANTARA :: SECURITY CONSOLE",
+                style="bold bright_white",
             )
         )
-        return
-
-    table = Table(
-        title="Security Findings",
-        show_lines=True,
-        expand=True,
     )
-
-    table.add_column(
-        "Severity",
-        no_wrap=True,
-    )
-
-    table.add_column(
-        "ID",
-    )
-
-    table.add_column(
-        "Title",
-    )
-
-    table.add_column(
-        "Category",
-    )
-
-    for finding in findings:
-
-        style = severity_style(
-            finding.severity
-        )
-
-        table.add_row(
-            f"[{style}]"
-            f"{finding.severity.value}"
-            f"[/]",
-            finding.id,
-            finding.title,
-            finding.category,
-        )
-
-    console.print(table)
-
-
-def print_summary(
-    findings: list[Finding],
-) -> None:
-
-    summary = summarize_findings(
-        findings
-    )
-
-    table = Table(
-        title="Severity Summary"
-    )
-
-    table.add_column(
-        "Severity"
-    )
-
-    table.add_column(
-        "Count",
-        justify="right",
-    )
-
-    for severity, count in summary.items():
-
-        table.add_row(
-            severity,
-            str(count),
-        )
-
-    console.print(table)
 
 
 # ============================================================
-# TARGET
+# TARGET VALIDATION
 # ============================================================
 
-def validate_target(
-    target: str,
-) -> ScanTarget:
-
+def validate_target(target: str) -> ScanTarget:
     target = target.strip()
 
     if not target:
@@ -190,19 +188,11 @@ def validate_target(
         )
 
     if not target.startswith(
-        (
-            "http://",
-            "https://",
-        )
+        ("http://", "https://")
     ):
-        target = (
-            "https://"
-            + target
-        )
+        target = "https://" + target
 
-    parsed = urlparse(
-        target
-    )
+    parsed = urlparse(target)
 
     if parsed.scheme not in {
         "http",
@@ -226,7 +216,7 @@ def validate_target(
 
 
 # ============================================================
-# SCANNER
+# SCANNER ENGINE
 # ============================================================
 
 async def perform_scan(
@@ -235,146 +225,193 @@ async def perform_scan(
 
     config = load_config()
 
-    scanner = WebScanner(
-        config
-    )
+    scanner = WebScanner(config)
 
     try:
-
         findings, requests_made = (
             await scanner.scan(
                 str(target.url)
             )
         )
 
-        return (
-            findings,
-            requests_made,
-        )
+        return findings, requests_made
 
     finally:
-
         await scanner.close()
 
 
 # ============================================================
-# SCAN
+# OUTPUT HELPERS
+# ============================================================
+
+def print_findings(
+    findings: list[Finding],
+) -> None:
+
+    if not findings:
+        console.print(
+            Panel(
+                "[bold green]"
+                "No findings returned."
+                "[/]",
+                title="RESULT",
+                border_style="green",
+            )
+        )
+        return
+
+    table = Table(
+        title="[bold bright_red]FINDINGS[/]",
+        border_style="bright_red",
+    )
+
+    table.add_column(
+        "Severity",
+        style="bold",
+    )
+
+    table.add_column(
+        "Title",
+    )
+
+    table.add_column(
+        "URL",
+    )
+
+    for finding in findings:
+
+        severity = str(
+            getattr(
+                finding,
+                "severity",
+                "INFO",
+            )
+        )
+
+        title = str(
+            getattr(
+                finding,
+                "title",
+                "Unnamed finding",
+            )
+        )
+
+        url = str(
+            getattr(
+                finding,
+                "url",
+                "",
+            )
+        )
+
+        table.add_row(
+            severity,
+            title,
+            url,
+        )
+
+    console.print(table)
+
+
+def print_summary(
+    findings: list[Finding],
+) -> None:
+
+    summary = summarize_findings(
+        findings
+    )
+
+    table = Table(
+        title="[bold bright_red]SEVERITY SUMMARY[/]",
+        border_style="bright_red",
+    )
+
+    table.add_column(
+        "Severity"
+    )
+
+    table.add_column(
+        "Count",
+        justify="right",
+    )
+
+    for severity, count in summary.items():
+        table.add_row(
+            str(severity),
+            str(count),
+        )
+
+    console.print(table)
+
+
+# ============================================================
+# SCAN COMMAND
 # ============================================================
 
 @app.command()
 def scan(
     target: str = typer.Argument(
         ...,
-        help=(
-            "HTTP/HTTPS target yang "
-            "diizinkan untuk assessment."
-        ),
+        help="HTTP/HTTPS target authorized for assessment.",
     ),
-
     output: str = typer.Option(
         "reports",
         "--output",
         "-o",
-        help="Directory JSON report.",
+        help="Directory for JSON reports.",
     ),
 ) -> None:
 
-    print_banner()
+    banner()
 
     try:
-
-        scan_target = validate_target(
-            target
-        )
+        scan_target = validate_target(target)
 
     except typer.BadParameter as exc:
-
         console.print(
-            f"[bold red]"
-            f"Invalid target:[/] {exc}"
+            f"[bold red]Invalid target:[/] {exc}"
         )
-
-        raise typer.Exit(
-            code=2
-        )
+        raise typer.Exit(code=2)
 
     console.print(
         Panel(
-            f"[bold]URL:[/] "
-            f"{scan_target.url}\n"
-            f"[bold]Host:[/] "
-            f"{scan_target.hostname}\n"
-            f"[bold]Scheme:[/] "
-            f"{scan_target.scheme}",
-            title="Target",
-            border_style="cyan",
+            f"[bold]URL:[/] {scan_target.url}\n"
+            f"[bold]Host:[/] {scan_target.hostname}\n"
+            f"[bold]Scheme:[/] {scan_target.scheme}",
+            title="TARGET",
+            border_style="bright_red",
         )
     )
 
-    console.print(
-        "\n[cyan]"
-        "Running passive security assessment..."
-        "[/]\n"
-    )
-
     try:
-
-        findings, requests_made = (
-            asyncio.run(
-                perform_scan(
-                    scan_target
-                )
-            )
+        findings, requests_made = asyncio.run(
+            perform_scan(scan_target)
         )
 
     except KeyboardInterrupt:
-
         console.print(
-            "\n[yellow]"
-            "Scan interrupted."
-            "[/]"
+            "\n[yellow]Scan interrupted.[/]"
         )
-
-        raise typer.Exit(
-            code=130
-        )
+        raise typer.Exit(code=130)
 
     except Exception as exc:
-
         console.print(
             Panel(
                 str(exc),
-                title="Scan Error",
+                title="SCAN ERROR",
                 border_style="red",
             )
         )
-
-        raise typer.Exit(
-            code=1
-        )
+        raise typer.Exit(code=1)
 
     console.print(
-        "\n[bold cyan]"
-        "Assessment complete."
-        "[/]\n"
+        "\n[bold green]✓ Assessment complete.[/]\n"
     )
 
-    print_findings(
-        findings
-    )
-
-    console.print()
-
-    print_summary(
-        findings
-    )
-
-    # --------------------------------------------------------
-    # REPORT
-    # --------------------------------------------------------
+    print_findings(findings)
+    print_summary(findings)
 
     try:
-
         result = build_scan_result(
             target=scan_target,
             findings=findings,
@@ -387,39 +424,23 @@ def scan(
             directory=output,
         )
 
-    except Exception as exc:
-
         console.print(
             Panel(
-                str(exc),
-                title="Report Error",
-                border_style="yellow",
+                f"[bold green]JSON report created[/]\n\n"
+                f"{report_path}",
+                title="REPORT",
+                border_style="green",
             )
         )
 
-        raise typer.Exit(
-            code=1
+    except Exception as exc:
+        console.print(
+            Panel(
+                str(exc),
+                title="REPORT ERROR",
+                border_style="yellow",
+            )
         )
-
-    console.print(
-        Panel(
-            f"[bold green]"
-            f"JSON report created[/]\n\n"
-            f"{report_path}",
-            title="Report",
-            border_style="green",
-        )
-    )
-
-    console.print(
-        f"\n[bold]Findings:[/] "
-        f"{len(findings)}"
-    )
-
-    console.print(
-        f"[bold]Requests:[/] "
-        f"{requests_made}\n"
-    )
 
 
 # ============================================================
@@ -431,16 +452,16 @@ def version() -> None:
 
     console.print(
         Panel(
-            f"[bold cyan]{APP_NAME}[/]\n"
+            f"[bold bright_red]{APP_NAME}[/]\n"
             f"Version: {APP_VERSION}\n\n"
             "Web Security Assessment Toolkit",
-            border_style="cyan",
+            border_style="bright_red",
         )
     )
 
 
 # ============================================================
-# INFO
+# INFO / CONFIGURATION
 # ============================================================
 
 @app.command()
@@ -449,26 +470,16 @@ def info() -> None:
     config = load_config()
 
     table = Table(
-        title=APP_NAME
+        title=APP_NAME,
+        border_style="bright_red",
     )
 
-    table.add_column(
-        "Setting"
-    )
-
-    table.add_column(
-        "Value"
-    )
+    table.add_column("Setting")
+    table.add_column("Value")
 
     rows = [
-        (
-            "Version",
-            APP_VERSION,
-        ),
-        (
-            "Timeout",
-            f"{config.timeout}s",
-        ),
+        ("Version", APP_VERSION),
+        ("Timeout", f"{config.timeout}s"),
         (
             "Connect Timeout",
             f"{config.connect_timeout}s",
@@ -504,13 +515,455 @@ def info() -> None:
     ]
 
     for key, value in rows:
-
         table.add_row(
             key,
             value,
         )
 
     console.print(table)
+
+
+# ============================================================
+# MENU: TARGET
+# ============================================================
+
+def ask_target() -> str | None:
+
+    target = console.input(
+        "\n[bold bright_red]"
+        "Target URL » "
+        "[/]"
+    ).strip()
+
+    if not target:
+        console.print(
+            "[bold red]Target cannot be empty.[/]"
+        )
+        return None
+
+    if not target.startswith(
+        ("http://", "https://")
+    ):
+        target = "https://" + target
+
+    try:
+        validate_target(target)
+    except typer.BadParameter as exc:
+        console.print(
+            f"[bold red]Invalid target:[/] {exc}"
+        )
+        return None
+
+    return target
+
+
+# ============================================================
+# MENU: WEB SCAN
+# ============================================================
+
+def menu_web_scan() -> None:
+
+    clear_terminal()
+    banner()
+
+    console.print(
+        Panel(
+            "Passive HTTP/HTTPS security assessment "
+            "using the project's WebScanner engine.",
+            title="[bold bright_red]01 • WEB SECURITY SCAN[/]",
+            border_style="bright_red",
+        )
+    )
+
+    target = ask_target()
+
+    if target is None:
+        pause()
+        return
+
+    try:
+
+        scan_target = validate_target(
+            target
+        )
+
+        console.print(
+            "\n[bold bright_red]"
+            "Running assessment..."
+            "[/]\n"
+        )
+
+        findings, requests_made = asyncio.run(
+            perform_scan(scan_target)
+        )
+
+        console.print(
+            "[bold green]✓ Assessment complete.[/]\n"
+        )
+
+        print_findings(findings)
+
+        console.print()
+
+        print_summary(findings)
+
+        result = build_scan_result(
+            target=scan_target,
+            findings=findings,
+            pages_scanned=1,
+            requests_made=requests_made,
+        )
+
+        report_path = save_json_report(
+            result,
+            directory="reports",
+        )
+
+        console.print(
+            Panel(
+                f"[bold green]Report:[/] {report_path}\n"
+                f"[bold]Requests:[/] {requests_made}",
+                title="[bold bright_red]REPORT[/]",
+                border_style="green",
+            )
+        )
+
+    except KeyboardInterrupt:
+
+        console.print(
+            "\n[yellow]Scan interrupted.[/]"
+        )
+
+    except Exception as exc:
+
+        console.print(
+            Panel(
+                str(exc),
+                title="[bold red]SCAN ERROR[/]",
+                border_style="red",
+            )
+        )
+
+    pause()
+
+
+# ============================================================
+# MENU: REPORTS
+# ============================================================
+
+def menu_reports() -> None:
+
+    clear_terminal()
+    banner()
+
+    config = load_config()
+
+    reports_dir = Path(
+        config.reports_dir
+    )
+
+    reports_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    reports = sorted(
+        (
+            item
+            for item in reports_dir.iterdir()
+            if item.is_file()
+        ),
+        key=lambda item: item.stat().st_mtime,
+        reverse=True,
+    )
+
+    if not reports:
+
+        console.print(
+            Panel(
+                "[yellow]No reports found.[/]",
+                title="[bold bright_red]12 • VIEW REPORTS[/]",
+                border_style="yellow",
+            )
+        )
+
+        pause()
+        return
+
+    table = Table(
+        title="[bold bright_red]AVAILABLE REPORTS[/]",
+        border_style="bright_red",
+    )
+
+    table.add_column("FILE")
+    table.add_column(
+        "SIZE",
+        justify="right",
+    )
+
+    for report in reports:
+
+        table.add_row(
+            report.name,
+            f"{report.stat().st_size:,} B",
+        )
+
+    console.print(table)
+
+    pause()
+
+
+# ============================================================
+# MENU: CONFIGURATION
+# ============================================================
+
+def menu_configuration() -> None:
+
+    clear_terminal()
+    banner()
+
+    config = load_config()
+
+    table = Table(
+        title="[bold bright_red]CONFIGURATION[/]",
+        border_style="bright_red",
+    )
+
+    table.add_column("SETTING")
+    table.add_column("VALUE")
+
+    values = {
+        "Version": APP_VERSION,
+        "Timeout": f"{config.timeout}s",
+        "Connect Timeout": f"{config.connect_timeout}s",
+        "Max Redirects": str(config.max_redirects),
+        "Max Pages": str(config.max_pages),
+        "Concurrency": str(config.concurrency),
+        "Request Delay": f"{config.request_delay}s",
+        "TLS Verification": str(config.verify_tls),
+        "Follow Redirects": str(config.follow_redirects),
+        "Reports": str(config.reports_dir),
+    }
+
+    for key, value in values.items():
+        table.add_row(
+            key,
+            value,
+        )
+
+    console.print(table)
+
+    pause()
+
+
+# ============================================================
+# MENU: ABOUT
+# ============================================================
+
+def menu_about() -> None:
+
+    clear_terminal()
+    banner()
+
+    console.print(
+        Panel(
+            "[bold bright_red]"
+            "M4ZK1PLAY NUSANTARA"
+            "[/]\n\n"
+            "Dark Cyber Security Toolkit\n\n"
+            f"Version : {APP_VERSION}\n"
+            "Interface : Interactive CLI\n"
+            "Engine : WebScanner\n"
+            "Reports : JSON\n\n"
+            "[grey70]"
+            "🇮🇩 Built for authorized security assessment."
+            "[/]",
+            title="[bold bright_red]14 • ABOUT[/]",
+            border_style="bright_red",
+        )
+    )
+
+    pause()
+
+
+# ============================================================
+# MENU: PLACEHOLDER MODULE
+# ============================================================
+
+def module_status(
+    number: str,
+    title: str,
+    description: str,
+) -> None:
+
+    clear_terminal()
+    banner()
+
+    console.print(
+        Panel(
+            f"[bold white]{description}[/]\n\n"
+            "[bold bright_red]STATUS:[/] "
+            "[yellow]MODULE READY FOR IMPLEMENTATION[/]",
+            title=f"[bold bright_red]{number} • {title}[/]",
+            border_style="bright_red",
+        )
+    )
+
+    pause()
+
+
+# ============================================================
+# INTERACTIVE MENU
+# ============================================================
+
+def interactive_menu() -> None:
+
+    clear_terminal()
+    banner()
+    disclaimer()
+
+    pause()
+
+    while True:
+
+        clear_terminal()
+        banner()
+        show_menu()
+
+        choice = console.input(
+            "\n[bold bright_red]"
+            "Select option » "
+            "[/]"
+        ).strip()
+
+        if choice in {"0", "00"}:
+            break
+
+        if choice == "01":
+            menu_web_scan()
+
+        elif choice == "02":
+            module_status(
+                "02",
+                "SECURITY HEADERS",
+                "HTTP security header inspection.",
+            )
+
+        elif choice == "03":
+            module_status(
+                "03",
+                "COOKIE CHECKER",
+                "Cookie security attribute inspection.",
+            )
+
+        elif choice == "04":
+            module_status(
+                "04",
+                "CORS CHECKER",
+                "CORS policy inspection.",
+            )
+
+        elif choice == "05":
+            module_status(
+                "05",
+                "CSP CHECKER",
+                "Content-Security-Policy inspection.",
+            )
+
+        elif choice == "06":
+            module_status(
+                "06",
+                "INFORMATION DISCLOSURE",
+                "HTTP metadata and disclosure inspection.",
+            )
+
+        elif choice == "07":
+            module_status(
+                "07",
+                "REDIRECT ANALYZER",
+                "HTTP redirect chain inspection.",
+            )
+
+        elif choice == "08":
+            module_status(
+                "08",
+                "URL DISCOVERY",
+                "Same-origin URL discovery.",
+            )
+
+        elif choice == "09":
+            module_status(
+                "09",
+                "ROBOTS.TXT",
+                "robots.txt inspection.",
+            )
+
+        elif choice == "10":
+            module_status(
+                "10",
+                "SITEMAP.XML",
+                "sitemap.xml inspection.",
+            )
+
+        elif choice == "11":
+            module_status(
+                "11",
+                "TLS CHECKER",
+                "HTTPS/TLS configuration inspection.",
+            )
+
+        elif choice == "12":
+            menu_reports()
+
+        elif choice == "13":
+            menu_configuration()
+
+        elif choice == "14":
+            menu_about()
+
+        else:
+
+            console.print(
+                "\n[bold red]"
+                "Invalid option."
+                "[/]"
+            )
+
+            pause()
+
+    clear_terminal()
+
+    console.print(
+        Panel(
+            Align.center(
+                Text(
+                    "🦅 M4ZK1PLAY NUSANTARA 🇮🇩\n\n"
+                    "SECURITY CONSOLE CLOSED",
+                    style="bold bright_white",
+                )
+            ),
+            border_style="bright_red",
+            box=box.DOUBLE,
+        )
+    )
+
+
+# ============================================================
+# DEFAULT CALLBACK
+# ============================================================
+
+@app.callback(
+    invoke_without_command=True,
+)
+def cli_callback(
+    ctx: typer.Context,
+) -> None:
+    """
+    Launch interactive menu when no command is supplied.
+    """
+
+    if ctx.invoked_subcommand is None:
+        interactive_menu()
 
 
 # ============================================================
