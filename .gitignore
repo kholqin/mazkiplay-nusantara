@@ -60,3 +60,6 @@ app/*.bak
 app/*.old
 app/*.before-menu
 app/*.before-full-engine
+
+# Local scanner backups
+app/scanner.py.before-*
