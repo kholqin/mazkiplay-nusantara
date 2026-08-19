@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .evidence import Evidence
+    from .fingerprint import HTTPFingerprint
 
 
 # ============================================================
@@ -271,11 +275,11 @@ class SentinelResult:
         default_factory=list
     )
 
-    fingerprints: list[Any] = field(
+    fingerprints: list[HTTPFingerprint] = field(
         default_factory=list
     )
 
-    evidence: list[Any] = field(
+    evidence: list[Evidence] = field(
         default_factory=list
     )
 
