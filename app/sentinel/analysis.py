@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from .evidence import Evidence
-from .models import Confidence, SentinelFinding
+from .evidence import Evidence, SECURITY_HEADER_DESCRIPTIONS
+from .models import Confidence, HTTPObservation, SentinelFinding
 
 
 def analyze_evidence(
@@ -11,7 +11,7 @@ def analyze_evidence(
     Convert normalized evidence into deterministic findings.
 
     Evidence itself is not a vulnerability. Findings are produced
-    only when the available evidence satisfies an explicit rule.
+    only when an explicit analysis rule is satisfied.
     """
 
     findings: list[SentinelFinding] = []
@@ -42,6 +42,57 @@ def analyze_evidence(
                         "header",
                         "",
                     ),
+                },
+            )
+        )
+
+    return findings
+
+
+def analyze_missing_security_headers(
+    observation: HTTPObservation,
+) -> list[SentinelFinding]:
+    """
+    Report security headers that were not observed.
+
+    Missing headers are configuration observations, not
+    automatically confirmed vulnerabilities.
+    """
+
+    findings: list[SentinelFinding] = []
+
+    observed = {
+        header.lower()
+        for header in observation.headers
+    }
+
+    for header, title in SECURITY_HEADER_DESCRIPTIONS.items():
+        if header in observed:
+            continue
+
+        findings.append(
+            SentinelFinding(
+                finding_id=f"header-missing:{header}",
+                title=f"{title} not observed",
+                severity="info",
+                confidence=Confidence.HIGH,
+                category="security-header",
+                description=(
+                    f"{title} was not observed in the "
+                    "HTTP response."
+                ),
+                evidence=None,
+                recommendation=(
+                    f"Review whether {title} should be "
+                    "enabled for this application."
+                ),
+                url=(
+                    observation.final_url
+                    or observation.url
+                ),
+                metadata={
+                    "header": header,
+                    "observation": "missing",
                 },
             )
         )

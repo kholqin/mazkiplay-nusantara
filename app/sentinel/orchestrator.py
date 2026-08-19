@@ -8,7 +8,10 @@ from .assets import extract_assets
 from .dns import collect_dns_profile
 from .fingerprint import fingerprint_http
 from .evidence import collect_http_evidence
-from .analysis import analyze_evidence
+from .analysis import (
+    analyze_evidence,
+    analyze_missing_security_headers,
+)
 from .http import observe
 from .models import SentinelResult
 from .scope import Scope
@@ -151,6 +154,16 @@ async def run_sentinel(
 
             result.findings.extend(
                 findings
+            )
+
+            missing_header_findings = (
+                analyze_missing_security_headers(
+                    observation
+                )
+            )
+
+            result.findings.extend(
+                missing_header_findings
             )
 
             # =================================================

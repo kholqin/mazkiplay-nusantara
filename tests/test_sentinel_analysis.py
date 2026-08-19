@@ -46,3 +46,72 @@ def test_non_security_evidence_produces_no_finding():
     ]
 
     assert analyze_evidence(evidence) == []
+
+
+def test_missing_security_headers():
+    from app.sentinel.analysis import (
+        analyze_missing_security_headers,
+    )
+    from app.sentinel.models import HTTPObservation
+
+    observation = HTTPObservation(
+        url="https://example.com/",
+        status_code=200,
+        headers={
+            "content-security-policy":
+                "default-src 'self'",
+        },
+    )
+
+    findings = analyze_missing_security_headers(
+        observation
+    )
+
+    ids = {
+        finding.finding_id
+        for finding in findings
+    }
+
+    assert (
+        "header-missing:strict-transport-security"
+        in ids
+    )
+
+    assert (
+        "header-missing:x-frame-options"
+        in ids
+    )
+
+    assert (
+        "header-missing:content-security-policy"
+        not in ids
+    )
+
+
+def test_missing_security_headers_are_info():
+    from app.sentinel.analysis import (
+        analyze_missing_security_headers,
+    )
+    from app.sentinel.models import HTTPObservation
+
+    observation = HTTPObservation(
+        url="https://example.com/",
+        status_code=200,
+        headers={},
+    )
+
+    findings = analyze_missing_security_headers(
+        observation
+    )
+
+    assert findings
+
+    assert all(
+        finding.severity == "info"
+        for finding in findings
+    )
+
+    assert all(
+        finding.confidence == Confidence.HIGH
+        for finding in findings
+    )
