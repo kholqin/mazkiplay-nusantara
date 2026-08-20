@@ -127,3 +127,47 @@ async def test_http_observation_network_error():
     assert result.error is not None
 
     assert "ConnectError" in result.error
+
+
+@pytest.mark.asyncio
+async def test_http_cookie_observation_attributes():
+
+    transport = httpx.MockTransport(
+        lambda request: make_response(
+            url=str(request.url),
+            headers={
+                "set-cookie": (
+                    "session=abc; "
+                    "Secure; HttpOnly; "
+                    "SameSite=Lax; "
+                    "Path=/; "
+                    "Domain=example.com"
+                ),
+            },
+        )
+    )
+
+    async with httpx.AsyncClient(
+        transport=transport,
+    ) as client:
+
+        result = await observe(
+            client,
+            "https://example.com/",
+        )
+
+    assert "session" in result.cookies
+
+    assert len(
+        result.cookie_observations
+    ) == 1
+
+    cookie = result.cookie_observations[0]
+
+    assert cookie.name == "session"
+    assert cookie.value == "abc"
+    assert cookie.secure is True
+    assert cookie.httponly is True
+    assert cookie.samesite == "lax"
+    assert cookie.path == "/"
+    assert cookie.domain == "example.com"

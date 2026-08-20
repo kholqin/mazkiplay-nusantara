@@ -33,6 +33,26 @@ class PortState(str, Enum):
 
 
 # ============================================================
+# HTTP COOKIE
+# ============================================================
+
+@dataclass(slots=True)
+class HTTPCookieObservation:
+    """Structured observation of one Set-Cookie header."""
+
+    name: str
+    value: str | None = None
+
+    secure: bool = False
+    httponly: bool = False
+
+    samesite: str | None = None
+
+    domain: str | None = None
+    path: str | None = None
+
+
+# ============================================================
 # HTTP
 # ============================================================
 
@@ -69,6 +89,10 @@ class HTTPObservation:
     )
 
     cookies: list[str] = field(
+        default_factory=list
+    )
+
+    cookie_observations: list[HTTPCookieObservation] = field(
         default_factory=list
     )
 

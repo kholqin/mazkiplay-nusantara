@@ -80,23 +80,52 @@ def collect_cookie_evidence(
 ) -> list[Evidence]:
     evidence: list[Evidence] = []
 
-    for cookie in observation.cookies:
+    # Prefer structured cookie observations.
+    for cookie in observation.cookie_observations:
         evidence.append(
             Evidence(
-                evidence_id=f"cookie:{cookie}",
+                evidence_id=f"cookie:{cookie.name}",
                 category="cookie",
                 title="Observed HTTP cookie",
-                value=cookie,
+                value=cookie.value,
                 url=(
                     observation.final_url
                     or observation.url
                 ),
                 confidence="HIGH",
                 metadata={
-                    "cookie_name": cookie,
+                    "cookie_name": cookie.name,
+                    "secure": str(cookie.secure).lower(),
+                    "httponly": str(cookie.httponly).lower(),
+                    "samesite": cookie.samesite or "",
+                    "domain": cookie.domain or "",
+                    "path": cookie.path or "",
+                    "structured": "true",
                 },
             )
         )
+
+    # Backward-compatible fallback for observations that only
+    # contain the legacy cookie-name list.
+    if not observation.cookie_observations:
+        for cookie_name in observation.cookies:
+            evidence.append(
+                Evidence(
+                    evidence_id=f"cookie:{cookie_name}",
+                    category="cookie",
+                    title="Observed HTTP cookie",
+                    value=cookie_name,
+                    url=(
+                        observation.final_url
+                        or observation.url
+                    ),
+                    confidence="HIGH",
+                    metadata={
+                        "cookie_name": cookie_name,
+                        "structured": "false",
+                    },
+                )
+            )
 
     return evidence
 

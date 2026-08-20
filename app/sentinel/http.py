@@ -5,7 +5,10 @@ from urllib.parse import urljoin
 
 import httpx
 
-from .models import HTTPObservation
+from .models import (
+    HTTPCookieObservation,
+    HTTPObservation,
+)
 
 
 DEFAULT_TIMEOUT = 10.0
@@ -26,6 +29,61 @@ def _content_length(
         return len(response.content)
     except Exception:
         return None
+
+
+def _cookie_observations(
+    response: httpx.Response,
+) -> list[HTTPCookieObservation]:
+    observations: list[HTTPCookieObservation] = []
+
+    for raw_cookie in response.headers.get_list("set-cookie"):
+        parts = [
+            part.strip()
+            for part in raw_cookie.split(";")
+            if part.strip()
+        ]
+
+        if not parts or "=" not in parts[0]:
+            continue
+
+        name, value = parts[0].split("=", 1)
+        name = name.strip()
+
+        if not name:
+            continue
+
+        cookie = HTTPCookieObservation(
+            name=name,
+            value=value,
+        )
+
+        for attribute in parts[1:]:
+            if "=" in attribute:
+                key, attr_value = attribute.split(
+                    "=", 1
+                )
+                key = key.strip().lower()
+                attr_value = attr_value.strip()
+
+                if key == "samesite":
+                    cookie.samesite = attr_value.lower()
+                elif key == "domain":
+                    cookie.domain = attr_value
+                elif key == "path":
+                    cookie.path = attr_value
+
+                continue
+
+            flag = attribute.lower()
+
+            if flag == "secure":
+                cookie.secure = True
+            elif flag == "httponly":
+                cookie.httponly = True
+
+        observations.append(cookie)
+
+    return observations
 
 
 def _cookie_names(
@@ -125,6 +183,9 @@ async def observe(
                 response
             ),
             cookies=_cookie_names(
+                response
+            ),
+            cookie_observations=_cookie_observations(
                 response
             ),
         )

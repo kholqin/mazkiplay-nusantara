@@ -122,3 +122,42 @@ def test_empty_observation():
     )
 
     assert evidence == []
+
+
+def test_collect_structured_cookie_evidence():
+    from app.sentinel.models import (
+        HTTPCookieObservation,
+    )
+
+    observation = HTTPObservation(
+        url="https://example.com/",
+        status_code=200,
+        cookie_observations=[
+            HTTPCookieObservation(
+                name="session",
+                value="abc",
+                secure=True,
+                httponly=True,
+                samesite="lax",
+                domain="example.com",
+                path="/",
+            )
+        ],
+    )
+
+    evidence = collect_http_evidence(
+        observation
+    )
+
+    cookie = next(
+        item
+        for item in evidence
+        if item.category == "cookie"
+    )
+
+    assert cookie.metadata["cookie_name"] == "session"
+    assert cookie.metadata["secure"] == "true"
+    assert cookie.metadata["httponly"] == "true"
+    assert cookie.metadata["samesite"] == "lax"
+    assert cookie.metadata["domain"] == "example.com"
+    assert cookie.metadata["path"] == "/"
