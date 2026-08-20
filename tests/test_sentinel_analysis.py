@@ -675,3 +675,161 @@ def test_cookie_samesite_none_requires_secure():
         == "samesite-none"
         for item in findings
     )
+
+
+def test_cookie_domain_attribute_is_reported_as_policy_observation():
+    from app.sentinel.analysis import (
+        analyze_cookie_attributes,
+    )
+    from app.sentinel.evidence import Evidence
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:0:session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "session",
+                "secure": "true",
+                "httponly": "true",
+                "samesite": "lax",
+                "domain": "example.com",
+                "path": "/",
+                "structured": "true",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_attributes(evidence)
+
+    finding = next(
+        (
+            item
+            for item in findings
+            if item.metadata.get("attribute")
+            == "domain-present"
+        ),
+        None,
+    )
+
+    assert finding is not None
+    assert finding.severity == "info"
+    assert finding.confidence == Confidence.HIGH
+    assert finding.metadata["observed"] == "example.com"
+
+
+def test_cookie_host_only_domain_is_clean():
+    from app.sentinel.analysis import (
+        analyze_cookie_attributes,
+    )
+    from app.sentinel.evidence import Evidence
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:0:session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "session",
+                "secure": "true",
+                "httponly": "true",
+                "samesite": "strict",
+                "domain": "",
+                "path": "/",
+                "structured": "true",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_attributes(evidence)
+
+    assert not any(
+        item.metadata.get("attribute")
+        == "domain-present"
+        for item in findings
+    )
+
+
+def test_cookie_path_is_reported_as_policy_observation():
+    from app.sentinel.analysis import (
+        analyze_cookie_attributes,
+    )
+    from app.sentinel.evidence import Evidence
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:0:session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "session",
+                "secure": "true",
+                "httponly": "true",
+                "samesite": "lax",
+                "domain": "",
+                "path": "/app",
+                "structured": "true",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_attributes(evidence)
+
+    finding = next(
+        (
+            item
+            for item in findings
+            if item.metadata.get("attribute")
+            == "path-present"
+        ),
+        None,
+    )
+
+    assert finding is not None
+    assert finding.severity == "info"
+    assert finding.confidence == Confidence.HIGH
+    assert finding.metadata["observed"] == "/app"
+
+
+def test_cookie_default_root_path_is_clean():
+    from app.sentinel.analysis import (
+        analyze_cookie_attributes,
+    )
+    from app.sentinel.evidence import Evidence
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:0:session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "session",
+                "secure": "true",
+                "httponly": "true",
+                "samesite": "strict",
+                "domain": "",
+                "path": "/",
+                "structured": "true",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_attributes(evidence)
+
+    assert not any(
+        item.metadata.get("attribute")
+        == "path-present"
+        for item in findings
+    )
