@@ -51,6 +51,9 @@ class HTTPCookieObservation:
     domain: str | None = None
     path: str | None = None
 
+    max_age: str | None = None
+    expires: str | None = None
+
 
 # ============================================================
 # HTTP

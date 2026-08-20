@@ -71,6 +71,10 @@ def _cookie_observations(
                     cookie.domain = attr_value
                 elif key == "path":
                     cookie.path = attr_value
+                elif key == "max-age":
+                    cookie.max_age = attr_value
+                elif key == "expires":
+                    cookie.expires = attr_value
 
                 continue
 

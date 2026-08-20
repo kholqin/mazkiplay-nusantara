@@ -171,3 +171,117 @@ async def test_http_cookie_observation_attributes():
     assert cookie.samesite == "lax"
     assert cookie.path == "/"
     assert cookie.domain == "example.com"
+
+
+def test_observe_parses_structured_cookie_attributes():
+    import httpx
+
+    from app.sentinel.http import _cookie_observations
+
+    request = httpx.Request(
+        "GET",
+        "https://example.com/",
+    )
+
+    response = httpx.Response(
+        200,
+        request=request,
+        headers=[
+            (
+                "set-cookie",
+                "session=abc; Secure; HttpOnly; "
+                "SameSite=Lax; Domain=example.com; Path=/",
+            ),
+        ],
+    )
+
+    cookies = _cookie_observations(response)
+
+    assert len(cookies) == 1
+
+    cookie = cookies[0]
+
+    assert cookie.name == "session"
+    assert cookie.value == "abc"
+    assert cookie.secure is True
+    assert cookie.httponly is True
+    assert cookie.samesite == "lax"
+    assert cookie.domain == "example.com"
+    assert cookie.path == "/"
+
+
+def test_observe_parses_multiple_set_cookie_headers():
+    import httpx
+
+    from app.sentinel.http import _cookie_observations
+
+    request = httpx.Request(
+        "GET",
+        "https://example.com/",
+    )
+
+    response = httpx.Response(
+        200,
+        request=request,
+        headers=[
+            (
+                "set-cookie",
+                "session=abc; Secure; HttpOnly; SameSite=Lax",
+            ),
+            (
+                "set-cookie",
+                "csrf=xyz; Secure; SameSite=Strict; Path=/",
+            ),
+        ],
+    )
+
+    cookies = _cookie_observations(response)
+
+    assert len(cookies) == 2
+
+    assert cookies[0].name == "session"
+    assert cookies[0].secure is True
+    assert cookies[0].httponly is True
+    assert cookies[0].samesite == "lax"
+
+    assert cookies[1].name == "csrf"
+    assert cookies[1].secure is True
+    assert cookies[1].httponly is False
+    assert cookies[1].samesite == "strict"
+
+
+def test_observe_ignores_malformed_set_cookie():
+    import httpx
+
+    from app.sentinel.http import _cookie_observations
+
+    request = httpx.Request(
+        "GET",
+        "https://example.com/",
+    )
+
+    response = httpx.Response(
+        200,
+        request=request,
+        headers=[
+            (
+                "set-cookie",
+                "malformed-cookie",
+            ),
+            (
+                "set-cookie",
+                "=missing-name",
+            ),
+            (
+                "set-cookie",
+                "valid=value; Secure",
+            ),
+        ],
+    )
+
+    cookies = _cookie_observations(response)
+
+    assert len(cookies) == 1
+    assert cookies[0].name == "valid"
+    assert cookies[0].value == "value"
+    assert cookies[0].secure is True

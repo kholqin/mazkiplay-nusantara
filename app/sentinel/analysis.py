@@ -430,6 +430,87 @@ def analyze_cookie_attributes(
                 )
             )
 
+        # Cookie lifetime policy observations.
+        #
+        # Max-Age and Expires describe cookie lifetime. Their
+        # presence alone is informational and is not automatically
+        # treated as a vulnerability.
+
+        max_age = item.metadata.get(
+            "max_age",
+            "",
+        )
+
+        if max_age:
+            findings.append(
+                SentinelFinding(
+                    finding_id=(
+                        f"cookie-max-age-present:"
+                        f"{item.evidence_id}"
+                    ),
+                    title=(
+                        f"Cookie Max-Age attribute observed: "
+                        f"{cookie_name}"
+                    ),
+                    severity="info",
+                    confidence=Confidence.HIGH,
+                    category="cookie",
+                    description=(
+                        "The cookie includes a Max-Age attribute "
+                        "that defines its lifetime in seconds."
+                    ),
+                    evidence=item.value,
+                    recommendation=(
+                        "Review whether the configured cookie "
+                        "lifetime is appropriate for the sensitivity "
+                        "and purpose of the cookie."
+                    ),
+                    url=item.url,
+                    metadata={
+                        **base_metadata,
+                        "attribute": "max-age-present",
+                        "observed": max_age,
+                    },
+                )
+            )
+
+        expires = item.metadata.get(
+            "expires",
+            "",
+        )
+
+        if expires:
+            findings.append(
+                SentinelFinding(
+                    finding_id=(
+                        f"cookie-expires-present:"
+                        f"{item.evidence_id}"
+                    ),
+                    title=(
+                        f"Cookie Expires attribute observed: "
+                        f"{cookie_name}"
+                    ),
+                    severity="info",
+                    confidence=Confidence.HIGH,
+                    category="cookie",
+                    description=(
+                        "The cookie includes an Expires attribute "
+                        "that defines an absolute expiration time."
+                    ),
+                    evidence=item.value,
+                    recommendation=(
+                        "Review whether the configured expiration "
+                        "time is appropriate for the cookie."
+                    ),
+                    url=item.url,
+                    metadata={
+                        **base_metadata,
+                        "attribute": "expires-present",
+                        "observed": expires,
+                    },
+                )
+            )
+
         # Cookie prefix rules.
         #
         # __Secure- cookies must carry Secure.

@@ -833,3 +833,131 @@ def test_cookie_default_root_path_is_clean():
         == "path-present"
         for item in findings
     )
+
+
+def test_cookie_max_age_is_reported_as_policy_observation():
+    from app.sentinel.analysis import analyze_cookie_attributes
+    from app.sentinel.evidence import Evidence
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:0:session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "session",
+                "secure": "true",
+                "httponly": "true",
+                "samesite": "lax",
+                "domain": "",
+                "path": "/",
+                "max_age": "3600",
+                "expires": "",
+                "structured": "true",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_attributes(evidence)
+
+    finding = next(
+        (
+            item
+            for item in findings
+            if item.metadata.get("attribute")
+            == "max-age-present"
+        ),
+        None,
+    )
+
+    assert finding is not None
+    assert finding.severity == "info"
+    assert finding.confidence == Confidence.HIGH
+    assert finding.metadata["observed"] == "3600"
+
+
+def test_cookie_expires_is_reported_as_policy_observation():
+    from app.sentinel.analysis import analyze_cookie_attributes
+    from app.sentinel.evidence import Evidence
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:0:session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "session",
+                "secure": "true",
+                "httponly": "true",
+                "samesite": "strict",
+                "domain": "",
+                "path": "/",
+                "max_age": "",
+                "expires": "Wed, 21 Oct 2026 07:28:00 GMT",
+                "structured": "true",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_attributes(evidence)
+
+    finding = next(
+        (
+            item
+            for item in findings
+            if item.metadata.get("attribute")
+            == "expires-present"
+        ),
+        None,
+    )
+
+    assert finding is not None
+    assert finding.severity == "info"
+    assert finding.confidence == Confidence.HIGH
+    assert finding.metadata["observed"] == (
+        "Wed, 21 Oct 2026 07:28:00 GMT"
+    )
+
+
+def test_cookie_missing_lifetime_attributes_is_clean():
+    from app.sentinel.analysis import analyze_cookie_attributes
+    from app.sentinel.evidence import Evidence
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:0:session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "session",
+                "secure": "true",
+                "httponly": "true",
+                "samesite": "strict",
+                "domain": "",
+                "path": "/",
+                "max_age": "",
+                "expires": "",
+                "structured": "true",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_attributes(evidence)
+
+    assert not any(
+        item.metadata.get("attribute")
+        in {
+            "max-age-present",
+            "expires-present",
+        }
+        for item in findings
+    )

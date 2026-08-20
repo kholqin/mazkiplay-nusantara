@@ -104,6 +104,8 @@ def collect_cookie_evidence(
                     "samesite": cookie.samesite or "",
                     "domain": cookie.domain or "",
                     "path": cookie.path or "",
+                    "max_age": cookie.max_age or "",
+                    "expires": cookie.expires or "",
                     "structured": "true",
                 },
             )
