@@ -352,6 +352,84 @@ def analyze_cookie_attributes(
                 )
             )
 
+        # Domain and Path policy observations.
+        #
+        # A Domain attribute broadens cookie scope to the
+        # specified domain and potentially its subdomains.
+        # This is an informational policy observation, not
+        # automatically a vulnerability.
+        domain = item.metadata.get("domain", "")
+
+        if domain:
+            findings.append(
+                SentinelFinding(
+                    finding_id=(
+                        f"cookie-domain-present:"
+                        f"{item.evidence_id}"
+                    ),
+                    title=(
+                        f"Cookie Domain attribute observed: "
+                        f"{cookie_name}"
+                    ),
+                    severity="info",
+                    confidence=Confidence.HIGH,
+                    category="cookie",
+                    description=(
+                        "The cookie includes a Domain attribute, "
+                        "which broadens its cookie scope beyond "
+                        "host-only behavior."
+                    ),
+                    evidence=item.value,
+                    recommendation=(
+                        "Review whether the Domain attribute is "
+                        "required. Prefer host-only cookies when "
+                        "cross-subdomain sharing is unnecessary."
+                    ),
+                    url=item.url,
+                    metadata={
+                        **base_metadata,
+                        "attribute": "domain-present",
+                        "observed": domain,
+                    },
+                )
+            )
+
+        # Path controls which request paths receive the cookie.
+        # Report non-root paths as informational policy observations.
+        path = item.metadata.get("path", "")
+
+        if path and path != "/":
+            findings.append(
+                SentinelFinding(
+                    finding_id=(
+                        f"cookie-path-present:"
+                        f"{item.evidence_id}"
+                    ),
+                    title=(
+                        f"Cookie Path attribute observed: "
+                        f"{cookie_name}"
+                    ),
+                    severity="info",
+                    confidence=Confidence.HIGH,
+                    category="cookie",
+                    description=(
+                        "The cookie uses a Path attribute other "
+                        "than the root path."
+                    ),
+                    evidence=item.value,
+                    recommendation=(
+                        "Review whether the cookie Path is "
+                        "appropriately scoped for the application."
+                    ),
+                    url=item.url,
+                    metadata={
+                        **base_metadata,
+                        "attribute": "path-present",
+                        "observed": path,
+                    },
+                )
+            )
+
         # Cookie prefix rules.
         #
         # __Secure- cookies must carry Secure.
