@@ -280,6 +280,43 @@ def analyze_cookie_attributes(
                 )
             )
 
+        elif samesite not in {
+            "lax",
+            "strict",
+            "none",
+        }:
+            findings.append(
+                SentinelFinding(
+                    finding_id=(
+                        f"cookie-samesite-invalid:"
+                        f"{item.evidence_id}"
+                    ),
+                    title=(
+                        f"Unrecognized SameSite value: "
+                        f"{cookie_name}"
+                    ),
+                    severity="info",
+                    confidence=Confidence.HIGH,
+                    category="cookie",
+                    description=(
+                        "The observed cookie contains a SameSite "
+                        "value outside the recognized Lax, Strict, "
+                        "or None values."
+                    ),
+                    evidence=item.value,
+                    recommendation=(
+                        "Review the cookie configuration and use "
+                        "a supported SameSite policy."
+                    ),
+                    url=item.url,
+                    metadata={
+                        **base_metadata,
+                        "attribute": "samesite-invalid",
+                        "observed": samesite,
+                    },
+                )
+            )
+
         if (
             samesite == "none"
             and item.metadata.get("secure") != "true"

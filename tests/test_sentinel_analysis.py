@@ -561,3 +561,117 @@ def test_cookie_prefix_host_is_clean_when_constraints_match():
         }
         for item in findings
     )
+
+
+def test_cookie_invalid_samesite_value_is_observed():
+    from app.sentinel.analysis import (
+        analyze_cookie_attributes,
+    )
+    from app.sentinel.evidence import Evidence
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:0:session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "session",
+                "secure": "true",
+                "httponly": "true",
+                "samesite": "invalid-value",
+                "domain": "",
+                "path": "/",
+                "structured": "true",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_attributes(evidence)
+
+    finding = next(
+        (
+            item
+            for item in findings
+            if item.metadata.get("attribute")
+            == "samesite-invalid"
+        ),
+        None,
+    )
+
+    assert finding is not None
+    assert finding.severity == "info"
+    assert finding.confidence == Confidence.HIGH
+
+
+def test_cookie_samesite_lax_and_strict_are_valid():
+    from app.sentinel.analysis import (
+        analyze_cookie_attributes,
+    )
+    from app.sentinel.evidence import Evidence
+
+    for value in ("lax", "strict"):
+        evidence = [
+            Evidence(
+                evidence_id=f"cookie:0:session-{value}",
+                category="cookie",
+                title="Observed HTTP cookie",
+                value="abc",
+                url="https://example.com/",
+                confidence="HIGH",
+                metadata={
+                    "cookie_name": "session",
+                    "secure": "true",
+                    "httponly": "true",
+                    "samesite": value,
+                    "domain": "",
+                    "path": "/",
+                    "structured": "true",
+                },
+            )
+        ]
+
+        findings = analyze_cookie_attributes(evidence)
+
+        assert not any(
+            item.metadata.get("attribute")
+            == "samesite-invalid"
+            for item in findings
+        )
+
+
+def test_cookie_samesite_none_requires_secure():
+    from app.sentinel.analysis import (
+        analyze_cookie_attributes,
+    )
+    from app.sentinel.evidence import Evidence
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:0:session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "session",
+                "secure": "false",
+                "httponly": "true",
+                "samesite": "none",
+                "domain": "",
+                "path": "/",
+                "structured": "true",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_attributes(evidence)
+
+    assert any(
+        item.metadata.get("attribute")
+        == "samesite-none"
+        for item in findings
+    )
