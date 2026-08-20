@@ -278,3 +278,131 @@ def test_cookie_attribute_analysis_secure_cookie_is_clean():
     ]
 
     assert analyze_cookie_attributes(evidence) == []
+
+
+def test_cookie_attribute_analysis_preserves_structured_evidence_id():
+    from app.sentinel.analysis import (
+        analyze_cookie_attributes,
+    )
+    from app.sentinel.evidence import Evidence
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:0:session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "session",
+                "secure": "false",
+                "httponly": "false",
+                "samesite": "",
+                "structured": "true",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_attributes(evidence)
+
+    assert findings
+
+    assert all(
+        finding.metadata["evidence_id"]
+        == "cookie:0:session"
+        for finding in findings
+    )
+
+    assert all(
+        finding.metadata["cookie_name"]
+        == "session"
+        for finding in findings
+    )
+
+
+def test_structured_cookie_pipeline_produces_observation_and_attribute_findings():
+    from app.sentinel.analysis import (
+        analyze_cookie_attributes,
+        analyze_cookie_evidence,
+    )
+    from app.sentinel.evidence import (
+        collect_http_evidence,
+    )
+    from app.sentinel.models import (
+        HTTPObservation,
+        HTTPCookieObservation,
+    )
+
+    observation = HTTPObservation(
+        url="https://example.com/",
+        status_code=200,
+        cookie_observations=[
+            HTTPCookieObservation(
+                name="session",
+                value="abc",
+                secure=False,
+                httponly=False,
+                samesite=None,
+                domain="example.com",
+                path="/",
+            )
+        ],
+    )
+
+    evidence = collect_http_evidence(
+        observation
+    )
+
+    cookie_evidence = [
+        item
+        for item in evidence
+        if item.category == "cookie"
+    ]
+
+    assert len(cookie_evidence) == 1
+
+    cookie = cookie_evidence[0]
+
+    assert cookie.evidence_id == "cookie:0:session"
+    assert cookie.metadata["cookie_name"] == "session"
+    assert cookie.metadata["structured"] == "true"
+    assert cookie.metadata["domain"] == "example.com"
+    assert cookie.metadata["path"] == "/"
+
+    observation_findings = analyze_cookie_evidence(
+        evidence
+    )
+
+    attribute_findings = analyze_cookie_attributes(
+        evidence
+    )
+
+    assert len(observation_findings) == 1
+
+    observation_finding = observation_findings[0]
+
+    assert (
+        observation_finding.finding_id
+        == "cookie-observed:cookie:0:session"
+    )
+
+    attribute_ids = {
+        finding.finding_id
+        for finding in attribute_findings
+    }
+
+    assert (
+        "cookie-secure-missing:cookie:0:session"
+        in attribute_ids
+    )
+
+    assert (
+        "cookie-httponly-missing:cookie:0:session"
+        in attribute_ids
+    )
+
+    assert (
+        "cookie-samesite-missing:cookie:0:session"
+        in attribute_ids
+    )

@@ -161,3 +161,41 @@ def test_collect_structured_cookie_evidence():
     assert cookie.metadata["samesite"] == "lax"
     assert cookie.metadata["domain"] == "example.com"
     assert cookie.metadata["path"] == "/"
+
+
+def test_collect_structured_cookies_have_unique_evidence_ids():
+    from app.sentinel.evidence import collect_cookie_evidence
+    from app.sentinel.models import (
+        HTTPObservation,
+        HTTPCookieObservation,
+    )
+
+    observation = HTTPObservation(
+        url="https://example.com/",
+        cookie_observations=[
+            HTTPCookieObservation(
+                name="session",
+                value="abc",
+                secure=True,
+            ),
+            HTTPCookieObservation(
+                name="session",
+                value="xyz",
+                secure=True,
+            ),
+        ],
+    )
+
+    evidence = collect_cookie_evidence(observation)
+
+    ids = [
+        item.evidence_id
+        for item in evidence
+    ]
+
+    assert ids == [
+        "cookie:0:session",
+        "cookie:1:session",
+    ]
+
+    assert len(ids) == len(set(ids))

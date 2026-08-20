@@ -81,10 +81,14 @@ def collect_cookie_evidence(
     evidence: list[Evidence] = []
 
     # Prefer structured cookie observations.
-    for cookie in observation.cookie_observations:
+    # Include the observation index so multiple Set-Cookie
+    # headers with the same cookie name remain distinguishable.
+    for index, cookie in enumerate(
+        observation.cookie_observations
+    ):
         evidence.append(
             Evidence(
-                evidence_id=f"cookie:{cookie.name}",
+                evidence_id=f"cookie:{index}:{cookie.name}",
                 category="cookie",
                 title="Observed HTTP cookie",
                 value=cookie.value,

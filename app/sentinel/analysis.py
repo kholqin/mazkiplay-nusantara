@@ -106,9 +106,8 @@ def analyze_cookie_evidence(
     """
     Report observed cookies as informational findings.
 
-    Cookie security attributes are intentionally not inferred here
-    because the current HTTPObservation model stores cookies as
-    opaque strings.
+    Structured cookie security attributes are evaluated
+    separately by analyze_cookie_attributes().
     """
 
     findings: list[SentinelFinding] = []
