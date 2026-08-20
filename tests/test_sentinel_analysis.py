@@ -406,3 +406,158 @@ def test_structured_cookie_pipeline_produces_observation_and_attribute_findings(
         "cookie-samesite-missing:cookie:0:session"
         in attribute_ids
     )
+
+
+def test_cookie_prefix_secure_requires_secure():
+    from app.sentinel.analysis import (
+        analyze_cookie_attributes,
+    )
+    from app.sentinel.evidence import Evidence
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:0:__Secure-session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "__Secure-session",
+                "secure": "false",
+                "httponly": "true",
+                "samesite": "lax",
+                "domain": "",
+                "path": "/",
+                "structured": "true",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_attributes(evidence)
+
+    finding = next(
+        item
+        for item in findings
+        if item.metadata.get("attribute")
+        == "secure-prefix"
+    )
+
+    assert finding.severity == "low"
+    assert finding.confidence == Confidence.HIGH
+
+
+def test_cookie_prefix_secure_is_clean_when_secure():
+    from app.sentinel.analysis import (
+        analyze_cookie_attributes,
+    )
+    from app.sentinel.evidence import Evidence
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:0:__Secure-session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "__Secure-session",
+                "secure": "true",
+                "httponly": "true",
+                "samesite": "lax",
+                "domain": "",
+                "path": "/",
+                "structured": "true",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_attributes(evidence)
+
+    assert not any(
+        item.metadata.get("attribute")
+        == "secure-prefix"
+        for item in findings
+    )
+
+
+def test_cookie_prefix_host_requires_host_constraints():
+    from app.sentinel.analysis import (
+        analyze_cookie_attributes,
+    )
+    from app.sentinel.evidence import Evidence
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:0:__Host-session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "__Host-session",
+                "secure": "false",
+                "httponly": "true",
+                "samesite": "lax",
+                "domain": "example.com",
+                "path": "/login",
+                "structured": "true",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_attributes(evidence)
+
+    attributes = {
+        item.metadata.get("attribute")
+        for item in findings
+    }
+
+    assert "host-prefix-secure" in attributes
+    assert "host-prefix-domain" in attributes
+    assert "host-prefix-path" in attributes
+
+    assert all(
+        item.confidence == Confidence.HIGH
+        for item in findings
+    )
+
+
+def test_cookie_prefix_host_is_clean_when_constraints_match():
+    from app.sentinel.analysis import (
+        analyze_cookie_attributes,
+    )
+    from app.sentinel.evidence import Evidence
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:0:__Host-session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "__Host-session",
+                "secure": "true",
+                "httponly": "true",
+                "samesite": "strict",
+                "domain": "",
+                "path": "/",
+                "structured": "true",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_attributes(evidence)
+
+    assert not any(
+        item.metadata.get("attribute") in {
+            "host-prefix-secure",
+            "host-prefix-domain",
+            "host-prefix-path",
+        }
+        for item in findings
+    )

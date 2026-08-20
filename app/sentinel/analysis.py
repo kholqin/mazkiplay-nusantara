@@ -315,4 +315,143 @@ def analyze_cookie_attributes(
                 )
             )
 
+        # Cookie prefix rules.
+        #
+        # __Secure- cookies must carry Secure.
+        if cookie_name.startswith("__Secure-"):
+            if item.metadata.get("secure") != "true":
+                findings.append(
+                    SentinelFinding(
+                        finding_id=(
+                            f"cookie-secure-prefix:{item.evidence_id}"
+                        ),
+                        title=(
+                            f"__Secure- cookie without Secure: "
+                            f"{cookie_name}"
+                        ),
+                        severity="low",
+                        confidence=Confidence.HIGH,
+                        category="cookie",
+                        description=(
+                            "The cookie uses the __Secure- prefix "
+                            "but the Secure attribute was not observed."
+                        ),
+                        evidence=item.value,
+                        recommendation=(
+                            "Review the cookie configuration and "
+                            "ensure the Secure attribute is present."
+                        ),
+                        url=item.url,
+                        metadata={
+                            **base_metadata,
+                            "attribute": "secure-prefix",
+                            "observed": "false",
+                        },
+                    )
+                )
+
+        # __Host- cookies require:
+        #   Secure
+        #   Path=/
+        #   no Domain attribute
+        if cookie_name.startswith("__Host-"):
+            if item.metadata.get("secure") != "true":
+                findings.append(
+                    SentinelFinding(
+                        finding_id=(
+                            f"cookie-host-prefix-secure:"
+                            f"{item.evidence_id}"
+                        ),
+                        title=(
+                            f"__Host- cookie without Secure: "
+                            f"{cookie_name}"
+                        ),
+                        severity="low",
+                        confidence=Confidence.HIGH,
+                        category="cookie",
+                        description=(
+                            "The cookie uses the __Host- prefix "
+                            "but the Secure attribute was not observed."
+                        ),
+                        evidence=item.value,
+                        recommendation=(
+                            "Ensure the __Host- cookie includes "
+                            "the Secure attribute."
+                        ),
+                        url=item.url,
+                        metadata={
+                            **base_metadata,
+                            "attribute": "host-prefix-secure",
+                            "observed": "false",
+                        },
+                    )
+                )
+
+            if item.metadata.get("domain", ""):
+                findings.append(
+                    SentinelFinding(
+                        finding_id=(
+                            f"cookie-host-prefix-domain:"
+                            f"{item.evidence_id}"
+                        ),
+                        title=(
+                            f"__Host- cookie defines Domain: "
+                            f"{cookie_name}"
+                        ),
+                        severity="low",
+                        confidence=Confidence.HIGH,
+                        category="cookie",
+                        description=(
+                            "The cookie uses the __Host- prefix "
+                            "but a Domain attribute was observed."
+                        ),
+                        evidence=item.value,
+                        recommendation=(
+                            "Remove the Domain attribute from "
+                            "the __Host- cookie."
+                        ),
+                        url=item.url,
+                        metadata={
+                            **base_metadata,
+                            "attribute": "host-prefix-domain",
+                            "observed": "true",
+                        },
+                    )
+                )
+
+            if item.metadata.get("path", "") != "/":
+                findings.append(
+                    SentinelFinding(
+                        finding_id=(
+                            f"cookie-host-prefix-path:"
+                            f"{item.evidence_id}"
+                        ),
+                        title=(
+                            f"__Host- cookie Path is not /: "
+                            f"{cookie_name}"
+                        ),
+                        severity="low",
+                        confidence=Confidence.HIGH,
+                        category="cookie",
+                        description=(
+                            "The cookie uses the __Host- prefix "
+                            "but its Path attribute was not observed "
+                            "as '/'."
+                        ),
+                        evidence=item.value,
+                        recommendation=(
+                            "Set Path=/ for the __Host- cookie."
+                        ),
+                        url=item.url,
+                        metadata={
+                            **base_metadata,
+                            "attribute": "host-prefix-path",
+                            "observed": item.metadata.get(
+                                "path",
+                                "",
+                            ),
+                        },
+                    )
+                )
+
     return findings
