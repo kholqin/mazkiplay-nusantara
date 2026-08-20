@@ -199,3 +199,56 @@ def test_collect_structured_cookies_have_unique_evidence_ids():
     ]
 
     assert len(ids) == len(set(ids))
+
+def test_cookie_evidence_redacts_sensitive_value():
+    from app.sentinel.evidence import collect_cookie_evidence
+    from app.sentinel.models import (
+        HTTPObservation,
+        HTTPCookieObservation,
+    )
+
+    secret = "eyJhbGciOiJIUzI1NiJ9.super-secret"
+
+    observation = HTTPObservation(
+        url="https://example.com/",
+        status_code=200,
+        cookie_observations=[
+            HTTPCookieObservation(
+                name="session",
+                value=secret,
+                secure=True,
+                httponly=True,
+                samesite="lax",
+            )
+        ],
+    )
+
+    evidence = collect_cookie_evidence(observation)
+
+    assert len(evidence) == 1
+
+    item = evidence[0]
+
+    assert item.value == "[REDACTED]"
+    assert item.metadata["redacted"] == "true"
+    assert item.metadata["role"] == "session"
+
+    assert secret not in str(item)
+    assert secret not in str(item.metadata)
+
+
+def test_legacy_cookie_evidence_is_redacted():
+    from app.sentinel.evidence import collect_cookie_evidence
+    from app.sentinel.models import HTTPObservation
+
+    observation = HTTPObservation(
+        url="https://example.com/",
+        status_code=200,
+        cookies=["session"],
+    )
+
+    evidence = collect_cookie_evidence(observation)
+
+    assert len(evidence) == 1
+    assert evidence[0].value == "[REDACTED]"
+    assert evidence[0].metadata["redacted"] == "true"

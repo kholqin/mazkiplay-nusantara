@@ -63,3 +63,9 @@ app/*.before-full-engine
 
 # Local scanner backups
 app/scanner.py.before-*
+
+# Local development backups / snapshots
+*.before-*
+*.v010
+*.bak
+*.backup

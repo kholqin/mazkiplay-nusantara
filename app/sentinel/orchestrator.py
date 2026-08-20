@@ -13,11 +13,13 @@ from .analysis import (
     analyze_missing_security_headers,
     analyze_cookie_evidence,
     analyze_cookie_attributes,
+    analyze_tls,
 )
 from .http import observe
 from .models import SentinelResult
 from .scope import Scope
 from .subdomains import discover_subdomains, probe_host
+from .tls import observe_tls
 
 
 def utc_now() -> str:
@@ -32,6 +34,7 @@ async def run_sentinel(
     allow_subdomains: bool = True,
     discover: bool = True,
     observe_http: bool = True,
+    inspect_tls: bool = True,
 ) -> SentinelResult:
 
     started_at = utc_now()
@@ -227,6 +230,28 @@ async def run_sentinel(
 
                 except httpx.HTTPError:
                     pass
+
+    # ========================================================
+    # TLS
+    # ========================================================
+
+    if inspect_tls and scope.scheme.lower() == "https":
+
+        tls_observation = await observe_tls(
+            scope.hostname,
+            port=443,
+            timeout=10.0,
+        )
+
+        result.tls_observations.append(
+            tls_observation
+        )
+
+        result.findings.extend(
+            analyze_tls(
+                tls_observation
+            )
+        )
 
     # ========================================================
     # STATISTICS

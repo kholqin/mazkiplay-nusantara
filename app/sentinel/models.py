@@ -56,6 +56,45 @@ class HTTPCookieObservation:
 
 
 # ============================================================
+# TLS
+# ============================================================
+
+@dataclass(slots=True)
+class TLSObservation:
+    """
+    Passive observation of a TLS endpoint.
+
+    This model contains transport/certificate observations only.
+    Vulnerability classification belongs to the analysis layer.
+    """
+
+    hostname: str
+    port: int = 443
+
+    connected: bool = False
+
+    tls_version: str | None = None
+    cipher: str | None = None
+
+    subject: str | None = None
+    issuer: str | None = None
+
+    not_before: str | None = None
+    not_after: str | None = None
+
+    serial_number: str | None = None
+
+    san: list[str] = field(
+        default_factory=list
+    )
+
+    hostname_match: bool | None = None
+    certificate_trusted: bool | None = None
+
+    error: str | None = None
+
+
+# ============================================================
 # HTTP
 # ============================================================
 
@@ -299,6 +338,10 @@ class SentinelResult:
     )
 
     http_observations: list[HTTPObservation] = field(
+        default_factory=list
+    )
+
+    tls_observations: list[TLSObservation] = field(
         default_factory=list
     )
 

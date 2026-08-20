@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .cookies import cookie_metadata
 from .models import HTTPObservation
 
 
@@ -81,32 +82,36 @@ def collect_cookie_evidence(
     evidence: list[Evidence] = []
 
     # Prefer structured cookie observations.
-    # Include the observation index so multiple Set-Cookie
-    # headers with the same cookie name remain distinguishable.
+    # Cookie values are deliberately redacted before they
+    # enter the evidence/reporting layer.
     for index, cookie in enumerate(
         observation.cookie_observations
     ):
+        metadata = cookie_metadata(cookie)
+
         evidence.append(
             Evidence(
                 evidence_id=f"cookie:{index}:{cookie.name}",
                 category="cookie",
                 title="Observed HTTP cookie",
-                value=cookie.value,
+                value=metadata["value"],
                 url=(
                     observation.final_url
                     or observation.url
                 ),
                 confidence="HIGH",
                 metadata={
-                    "cookie_name": cookie.name,
-                    "secure": str(cookie.secure).lower(),
-                    "httponly": str(cookie.httponly).lower(),
-                    "samesite": cookie.samesite or "",
-                    "domain": cookie.domain or "",
-                    "path": cookie.path or "",
-                    "max_age": cookie.max_age or "",
-                    "expires": cookie.expires or "",
+                    "cookie_name": metadata["cookie_name"],
+                    "role": metadata["role"],
+                    "secure": metadata["secure"],
+                    "httponly": metadata["httponly"],
+                    "samesite": metadata["samesite"],
+                    "domain": metadata["domain"],
+                    "path": metadata["path"],
+                    "max_age": metadata["max_age"],
+                    "expires": metadata["expires"],
                     "structured": "true",
+                    "redacted": "true",
                 },
             )
         )
@@ -120,7 +125,7 @@ def collect_cookie_evidence(
                     evidence_id=f"cookie:{cookie_name}",
                     category="cookie",
                     title="Observed HTTP cookie",
-                    value=cookie_name,
+                    value="[REDACTED]",
                     url=(
                         observation.final_url
                         or observation.url
@@ -128,7 +133,9 @@ def collect_cookie_evidence(
                     confidence="HIGH",
                     metadata={
                         "cookie_name": cookie_name,
+                        "role": "unknown",
                         "structured": "false",
+                        "redacted": "true",
                     },
                 )
             )

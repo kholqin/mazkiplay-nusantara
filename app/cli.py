@@ -23,6 +23,17 @@ from app.reporting import (
 )
 from app.scanner import WebScanner
 
+from modules.cookies import check_cookies
+from modules.cors import check_cors
+from modules.csp import check_csp
+from modules.crawler import crawl
+from modules.disclosure import check_disclosure
+from modules.headers import run_header_checks
+from modules.redirects import check_redirect_chain
+from modules.robots import check_robots
+from modules.sitemap import check_sitemap
+from modules.tls import check_tls
+
 
 # ============================================================
 # APPLICATION
@@ -793,14 +804,194 @@ def menu_about() -> None:
 
 
 # ============================================================
-# MENU: PLACEHOLDER MODULE
+# MENU: INDIVIDUAL SECURITY MODULES
 # ============================================================
+
+async def perform_module_check(
+    number: str,
+    target: ScanTarget,
+) -> tuple[list[Finding], int]:
+    """
+    Execute one individual security module.
+
+    The modules are intentionally kept behind the same HTTP
+    client/configuration used by the main WebScanner.
+    """
+
+    config = load_config()
+    scanner = WebScanner(config)
+
+    try:
+        # --------------------------------------------------
+        # Response-based modules
+        # --------------------------------------------------
+
+        if number in {
+            "02",
+            "03",
+            "04",
+            "05",
+            "06",
+            "07",
+        }:
+            response = await scanner.get(str(target.url))
+
+            if number == "02":
+                findings = run_header_checks(response)
+
+            elif number == "03":
+                findings = check_cookies(response)
+
+            elif number == "04":
+                findings = check_cors(response)
+
+            elif number == "05":
+                findings = check_csp(response)
+
+            elif number == "06":
+                findings = check_disclosure(response)
+
+            else:
+                findings = check_redirect_chain(
+                    response,
+                    str(target.url),
+                )
+
+            return scanner.deduplicate(findings), 1
+
+        # --------------------------------------------------
+        # URL discovery / crawler
+        # --------------------------------------------------
+
+        if number == "08":
+            (
+                pages,
+                findings,
+                requests_made,
+            ) = await crawl(
+                client=scanner.client,
+                start_url=str(target.url),
+                max_pages=config.max_pages,
+                request_delay=config.request_delay,
+            )
+
+            console.print(
+                Panel(
+                    f"[bold]Pages discovered:[/] {len(pages)}\n"
+                    f"[bold]Requests made:[/] {requests_made}",
+                    title="[bold bright_red]08 • URL DISCOVERY[/]",
+                    border_style="bright_red",
+                )
+            )
+
+            return (
+                scanner.deduplicate(findings),
+                requests_made,
+            )
+
+        # --------------------------------------------------
+        # robots.txt
+        # --------------------------------------------------
+
+        if number == "09":
+            findings = await check_robots(
+                scanner.client,
+                str(target.url),
+            )
+
+            return scanner.deduplicate(findings), 1
+
+        # --------------------------------------------------
+        # sitemap.xml
+        # --------------------------------------------------
+
+        if number == "10":
+            discovered, findings = await check_sitemap(
+                scanner.client,
+                str(target.url),
+                max_urls=config.max_sitemap_urls,
+            )
+
+            console.print(
+                Panel(
+                    f"[bold]URLs discovered:[/] {len(discovered)}",
+                    title="[bold bright_red]10 • SITEMAP.XML[/]",
+                    border_style="bright_red",
+                )
+            )
+
+            return (
+                scanner.deduplicate(findings),
+                1,
+            )
+
+        # --------------------------------------------------
+        # TLS
+        # --------------------------------------------------
+
+        if number == "11":
+            if target.scheme != "https":
+                return [
+                    Finding(
+                        id="tls-not-applicable",
+                        title="TLS Check Not Applicable",
+                        severity="INFO",
+                        description=(
+                            "TLS certificate inspection requires "
+                            "an HTTPS target."
+                        ),
+                        evidence=str(target.url),
+                        recommendation=(
+                            "Use an HTTPS target to perform TLS "
+                            "certificate inspection."
+                        ),
+                        url=str(target.url),
+                        category="tls",
+                    )
+                ], 0
+
+            findings = await check_tls(
+                hostname=target.hostname,
+                port=target.port or 443,
+                timeout=config.timeout,
+            )
+
+            return scanner.deduplicate(findings), 0
+
+        return [
+            Finding(
+                id=f"unknown-module-{number}",
+                title="Unknown Module",
+                severity="INFO",
+                description="The requested module is not registered.",
+                evidence=number,
+                recommendation="Select a valid module.",
+                url=str(target.url),
+                category="scanner",
+            )
+        ], 0
+
+    except Exception as exc:
+        return [
+            scanner.checker_error(
+                f"module-{number}",
+                str(target.url),
+                exc,
+            )
+        ], 0
+
+    finally:
+        await scanner.close()
+
 
 def module_status(
     number: str,
     title: str,
     description: str,
 ) -> None:
+    """
+    Run an individual security module from the interactive menu.
+    """
 
     clear_terminal()
     banner()
@@ -808,12 +999,84 @@ def module_status(
     console.print(
         Panel(
             f"[bold white]{description}[/]\n\n"
-            "[bold bright_red]STATUS:[/] "
-            "[yellow]MODULE READY FOR IMPLEMENTATION[/]",
+            "[bold green]STATUS:[/] ACTIVE",
             title=f"[bold bright_red]{number} • {title}[/]",
             border_style="bright_red",
         )
     )
+
+    target_input = ask_target()
+
+    if not target_input:
+        return
+
+    try:
+        target = validate_target(target_input)
+
+    except typer.BadParameter as exc:
+        console.print(
+            Panel(
+                str(exc),
+                title="[bold red]INVALID TARGET[/]",
+                border_style="red",
+            )
+        )
+        pause()
+        return
+
+    console.print(
+        Panel(
+            f"[bold]URL:[/] {target.url}\n"
+            f"[bold]Host:[/] {target.hostname}\n"
+            f"[bold]Scheme:[/] {target.scheme}",
+            title="[bold bright_red]TARGET[/]",
+            border_style="bright_red",
+        )
+    )
+
+    console.print(
+        "\n[bold yellow]Running module...[/]\n"
+    )
+
+    try:
+        findings, requests_made = asyncio.run(
+            perform_module_check(
+                number,
+                target,
+            )
+        )
+
+    except KeyboardInterrupt:
+        console.print(
+            "\n[yellow]Module interrupted.[/]"
+        )
+        return
+
+    except Exception as exc:
+        console.print(
+            Panel(
+                str(exc),
+                title="[bold red]MODULE ERROR[/]",
+                border_style="red",
+            )
+        )
+        pause()
+        return
+
+    console.print(
+        "\n[bold green]✓ Module completed.[/]\n"
+    )
+
+    console.print(
+        Panel(
+            f"[bold]Requests made:[/] {requests_made}",
+            title="[bold bright_red]RESULT[/]",
+            border_style="bright_red",
+        )
+    )
+
+    print_findings(findings)
+    print_summary(findings)
 
     pause()
 

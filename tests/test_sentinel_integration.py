@@ -60,3 +60,34 @@ async def test_sentinel_result_contains_analysis_fields():
     # target tidak menyediakan security headers.
     assert isinstance(result.evidence, list)
     assert isinstance(result.findings, list)
+
+
+@pytest.mark.asyncio
+async def test_sentinel_tls_observation():
+    result = await run_sentinel(
+        "example.com",
+        discover=False,
+        observe_http=False,
+        inspect_tls=True,
+    )
+
+    assert result.tls_observations
+
+    observation = (
+        result.tls_observations[0]
+    )
+
+    assert observation.hostname == "example.com"
+    assert observation.port == 443
+
+
+@pytest.mark.asyncio
+async def test_sentinel_tls_can_be_disabled():
+    result = await run_sentinel(
+        "example.com",
+        discover=False,
+        observe_http=False,
+        inspect_tls=False,
+    )
+
+    assert result.tls_observations == []

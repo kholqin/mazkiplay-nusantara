@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from .evidence import Evidence, SECURITY_HEADER_DESCRIPTIONS
 from .models import Confidence, HTTPObservation, SentinelFinding
 
@@ -649,5 +651,193 @@ def analyze_cookie_attributes(
                         },
                     )
                 )
+
+    return findings
+
+
+def analyze_tls(
+    observation,
+) -> list[SentinelFinding]:
+    """
+    Convert TLS observations into deterministic findings.
+
+    These findings describe certificate and TLS configuration
+    observations. They do not claim exploitability.
+    """
+
+    findings: list[SentinelFinding] = []
+
+    url = (
+        f"https://{observation.hostname}:"
+        f"{observation.port}/"
+    )
+
+    if not observation.connected:
+        findings.append(
+            SentinelFinding(
+                finding_id="tls-connection-error",
+                title="TLS Connection Failed",
+                severity="medium",
+                confidence=Confidence.HIGH,
+                category="tls",
+                description=(
+                    "The TLS endpoint could not be inspected."
+                ),
+                evidence=observation.error,
+                recommendation=(
+                    "Verify TLS service availability and "
+                    "certificate configuration."
+                ),
+                url=url,
+            )
+        )
+
+        return findings
+
+    if observation.hostname_match is False:
+        findings.append(
+            SentinelFinding(
+                finding_id="tls-hostname-mismatch",
+                title="TLS Certificate Hostname Mismatch",
+                severity="high",
+                confidence=Confidence.HIGH,
+                category="tls",
+                description=(
+                    "The presented certificate does not match "
+                    "the inspected hostname."
+                ),
+                evidence=(
+                    f"Hostname: {observation.hostname}\n"
+                    f"SAN: {', '.join(observation.san)}"
+                ),
+                recommendation=(
+                    "Deploy a certificate containing the "
+                    "correct DNS name in its SAN."
+                ),
+                url=url,
+                cwe="CWE-297",
+                metadata={
+                    "hostname": observation.hostname,
+                    "san": observation.san,
+                },
+            )
+        )
+
+    if observation.not_after:
+        try:
+            expires = datetime.fromisoformat(
+                observation.not_after
+            )
+
+            now = datetime.now(timezone.utc)
+
+            if now > expires:
+                findings.append(
+                    SentinelFinding(
+                        finding_id="tls-certificate-expired",
+                        title="Expired TLS Certificate",
+                        severity="high",
+                        confidence=Confidence.HIGH,
+                        category="tls",
+                        description=(
+                            "The presented TLS certificate "
+                            "has expired."
+                        ),
+                        evidence=(
+                            f"Expired: {expires.isoformat()}"
+                        ),
+                        recommendation=(
+                            "Renew and deploy a valid TLS "
+                            "certificate."
+                        ),
+                        url=url,
+                        metadata={
+                            "not_after": (
+                                expires.isoformat()
+                            ),
+                        },
+                    )
+                )
+
+            else:
+                remaining_seconds = (
+                    expires - now
+                ).total_seconds()
+
+                remaining_days = int(
+                    remaining_seconds // 86_400
+                )
+
+                if 0 <= remaining_days <= 30:
+                    findings.append(
+                        SentinelFinding(
+                            finding_id=(
+                                "tls-certificate-expiring-soon"
+                            ),
+                            title=(
+                                "TLS Certificate Expiring Soon"
+                            ),
+                            severity="medium",
+                            confidence=Confidence.HIGH,
+                            category="tls",
+                            description=(
+                                "The TLS certificate expires "
+                                "within 30 days."
+                            ),
+                            evidence=(
+                                f"Remaining validity: "
+                                f"{remaining_days} days"
+                            ),
+                            recommendation=(
+                                "Renew the certificate before "
+                                "expiration."
+                            ),
+                            url=url,
+                            metadata={
+                                "remaining_days":
+                                    remaining_days,
+                                "not_after":
+                                    expires.isoformat(),
+                            },
+                        )
+                    )
+
+        except ValueError:
+            pass
+
+    findings.append(
+        SentinelFinding(
+            finding_id="tls-certificate-info",
+            title="TLS Certificate Information",
+            severity="info",
+            confidence=Confidence.HIGH,
+            category="tls",
+            description=(
+                "TLS certificate and transport metadata "
+                "were successfully collected."
+            ),
+            evidence=(
+                f"Subject: {observation.subject}\n"
+                f"Issuer: {observation.issuer}\n"
+                f"TLS: {observation.tls_version}\n"
+                f"Cipher: {observation.cipher}\n"
+                f"SAN: {', '.join(observation.san)}"
+            ),
+            recommendation=None,
+            url=url,
+            metadata={
+                "subject": observation.subject,
+                "issuer": observation.issuer,
+                "tls_version": observation.tls_version,
+                "cipher": observation.cipher,
+                "san": observation.san,
+                "not_before": observation.not_before,
+                "not_after": observation.not_after,
+                "hostname_match": (
+                    observation.hostname_match
+                ),
+            },
+        )
+    )
 
     return findings
