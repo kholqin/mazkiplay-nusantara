@@ -176,3 +176,105 @@ def test_cookie_analysis_ignores_other_evidence():
     assert analyze_cookie_evidence(
         evidence
     ) == []
+
+
+def test_cookie_attribute_analysis_reports_missing_attributes():
+    from app.sentinel.analysis import (
+        analyze_cookie_attributes,
+    )
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "session",
+                "secure": "false",
+                "httponly": "false",
+                "samesite": "",
+                "structured": "true",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_attributes(evidence)
+
+    ids = {
+        finding.finding_id
+        for finding in findings
+    }
+
+    assert "cookie-secure-missing:cookie:session" in ids
+    assert "cookie-httponly-missing:cookie:session" in ids
+    assert "cookie-samesite-missing:cookie:session" in ids
+
+    assert all(
+        finding.severity == "info"
+        for finding in findings
+    )
+
+
+def test_cookie_attribute_analysis_samesite_none_requires_secure():
+    from app.sentinel.analysis import (
+        analyze_cookie_attributes,
+    )
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "session",
+                "secure": "false",
+                "httponly": "true",
+                "samesite": "none",
+                "structured": "true",
+            },
+        )
+    ]
+
+    findings = analyze_cookie_attributes(evidence)
+
+    finding = next(
+        item
+        for item in findings
+        if item.metadata.get("attribute")
+        == "samesite-none"
+    )
+
+    assert finding.severity == "low"
+    assert finding.confidence == Confidence.HIGH
+
+
+def test_cookie_attribute_analysis_secure_cookie_is_clean():
+    from app.sentinel.analysis import (
+        analyze_cookie_attributes,
+    )
+
+    evidence = [
+        Evidence(
+            evidence_id="cookie:session",
+            category="cookie",
+            title="Observed HTTP cookie",
+            value="abc",
+            url="https://example.com/",
+            confidence="HIGH",
+            metadata={
+                "cookie_name": "session",
+                "secure": "true",
+                "httponly": "true",
+                "samesite": "strict",
+                "structured": "true",
+            },
+        )
+    ]
+
+    assert analyze_cookie_attributes(evidence) == []

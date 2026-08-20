@@ -150,3 +150,170 @@ def analyze_cookie_evidence(
         )
 
     return findings
+
+
+def analyze_cookie_attributes(
+    evidence: list[Evidence],
+) -> list[SentinelFinding]:
+    """
+    Analyze structured cookie security attributes.
+
+    This rule evaluates only normalized cookie metadata.
+    Missing attributes are configuration observations, not
+    automatically confirmed vulnerabilities.
+    """
+
+    findings: list[SentinelFinding] = []
+
+    for item in evidence:
+        if item.category != "cookie":
+            continue
+
+        if item.metadata.get("structured") != "true":
+            continue
+
+        cookie_name = item.metadata.get(
+            "cookie_name",
+            "unknown",
+        )
+
+        base_metadata = {
+            "evidence_id": item.evidence_id,
+            "cookie_name": cookie_name,
+            "analysis": "attribute-review",
+        }
+
+        if item.metadata.get("secure") != "true":
+            findings.append(
+                SentinelFinding(
+                    finding_id=(
+                        f"cookie-secure-missing:{item.evidence_id}"
+                    ),
+                    title=(
+                        f"Cookie Secure attribute not observed: "
+                        f"{cookie_name}"
+                    ),
+                    severity="info",
+                    confidence=Confidence.HIGH,
+                    category="cookie",
+                    description=(
+                        "The observed cookie does not include "
+                        "the Secure attribute."
+                    ),
+                    evidence=item.value,
+                    recommendation=(
+                        "Review whether the cookie should be "
+                        "restricted to HTTPS with the Secure attribute."
+                    ),
+                    url=item.url,
+                    metadata={
+                        **base_metadata,
+                        "attribute": "secure",
+                        "observed": "false",
+                    },
+                )
+            )
+
+        if item.metadata.get("httponly") != "true":
+            findings.append(
+                SentinelFinding(
+                    finding_id=(
+                        f"cookie-httponly-missing:{item.evidence_id}"
+                    ),
+                    title=(
+                        f"Cookie HttpOnly attribute not observed: "
+                        f"{cookie_name}"
+                    ),
+                    severity="info",
+                    confidence=Confidence.HIGH,
+                    category="cookie",
+                    description=(
+                        "The observed cookie does not include "
+                        "the HttpOnly attribute."
+                    ),
+                    evidence=item.value,
+                    recommendation=(
+                        "Review whether client-side JavaScript access "
+                        "is required. If not, consider HttpOnly."
+                    ),
+                    url=item.url,
+                    metadata={
+                        **base_metadata,
+                        "attribute": "httponly",
+                        "observed": "false",
+                    },
+                )
+            )
+
+        samesite = item.metadata.get(
+            "samesite",
+            "",
+        ).lower()
+
+        if not samesite:
+            findings.append(
+                SentinelFinding(
+                    finding_id=(
+                        f"cookie-samesite-missing:{item.evidence_id}"
+                    ),
+                    title=(
+                        f"Cookie SameSite attribute not observed: "
+                        f"{cookie_name}"
+                    ),
+                    severity="info",
+                    confidence=Confidence.HIGH,
+                    category="cookie",
+                    description=(
+                        "The observed cookie does not include "
+                        "a SameSite attribute."
+                    ),
+                    evidence=item.value,
+                    recommendation=(
+                        "Review whether an explicit SameSite policy "
+                        "such as Lax or Strict is appropriate."
+                    ),
+                    url=item.url,
+                    metadata={
+                        **base_metadata,
+                        "attribute": "samesite",
+                        "observed": "false",
+                    },
+                )
+            )
+
+        if (
+            samesite == "none"
+            and item.metadata.get("secure") != "true"
+        ):
+            findings.append(
+                SentinelFinding(
+                    finding_id=(
+                        f"cookie-samesite-none-insecure:"
+                        f"{item.evidence_id}"
+                    ),
+                    title=(
+                        f"SameSite=None without Secure: "
+                        f"{cookie_name}"
+                    ),
+                    severity="low",
+                    confidence=Confidence.HIGH,
+                    category="cookie",
+                    description=(
+                        "The observed cookie declares SameSite=None "
+                        "without the Secure attribute."
+                    ),
+                    evidence=item.value,
+                    recommendation=(
+                        "Review the cookie configuration and add "
+                        "Secure when SameSite=None is intentionally used."
+                    ),
+                    url=item.url,
+                    metadata={
+                        **base_metadata,
+                        "attribute": "samesite-none",
+                        "observed": "insecure",
+                    },
+                )
+            )
+
+    return findings

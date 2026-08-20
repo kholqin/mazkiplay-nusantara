@@ -12,6 +12,7 @@ from .analysis import (
     analyze_evidence,
     analyze_missing_security_headers,
     analyze_cookie_evidence,
+    analyze_cookie_attributes,
 )
 from .http import observe
 from .models import SentinelResult
@@ -175,6 +176,16 @@ async def run_sentinel(
 
             result.findings.extend(
                 cookie_findings
+            )
+
+            cookie_attribute_findings = (
+                analyze_cookie_attributes(
+                    http_evidence
+                )
+            )
+
+            result.findings.extend(
+                cookie_attribute_findings
             )
 
             # =================================================
